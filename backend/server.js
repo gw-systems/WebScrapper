@@ -910,13 +910,20 @@ async function handleScrapeCategories(socket, cid, data) {
     // Filter categories if specified
     let categoriesToScrape = allCategories;
     if (categoryFilter) {
+      const searchTerm = categoryFilter.toLowerCase().trim();
       categoriesToScrape = allCategories.filter(cat =>
-        cat.mainCategory.toLowerCase().includes(categoryFilter.toLowerCase())
+        cat.name.toLowerCase().includes(searchTerm) ||
+        cat.mainCategory.toLowerCase().includes(searchTerm) ||
+        cat.subCategory.toLowerCase().includes(searchTerm)
       );
-    }
 
-    // Limit number of categories for testing
-    categoriesToScrape = categoriesToScrape.slice(0, maxCategories);
+      // When searching for specific categories, don't limit results
+      // User wants all matching categories
+      console.log(`Category filter "${categoryFilter}" matched ${categoriesToScrape.length} categories`);
+    } else {
+      // Only limit when scraping "all categories"
+      categoriesToScrape = categoriesToScrape.slice(0, maxCategories);
+    }
 
     socket.send(
       JSON.stringify({

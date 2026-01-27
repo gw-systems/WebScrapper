@@ -6,6 +6,8 @@ import { ProductList } from "@/components/ProductList"
 import { LoadingIndicator } from "@/components/loading-indicator"
 import { Package2, AlertCircle, MapPin } from "lucide-react"
 import { Toaster, toast } from "react-hot-toast"
+import * as XLSX from "xlsx"
+import { Input } from "@/components/ui/input"
 
 const getWebsocketUrl = () => {
   const isProduction = import.meta.env.PROD;
@@ -59,6 +61,7 @@ export default function Home() {
   const [isScrapingCategories, setIsScrapingCategories] = useState(false)
   const [categoryProgress, setCategoryProgress] = useState({ current: 0, total: 0, categoryName: "" })
   const [categoryResults, setCategoryResults] = useState<any[]>([])
+  const [categorySearchTerm, setCategorySearchTerm] = useState("")
 
   const [services, setServices] = useState<Record<Service, ServiceState>>({
     blinkit: {
@@ -452,7 +455,7 @@ export default function Home() {
     }
   }
 
-  const handleScrapeCategories = (maxCategories: number = 10) => {
+  const handleScrapeCategories = (maxCategories: number = 334, categoryFilter: string = "") => {
     if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
       toast.error("Connection not ready. Please wait.")
       return
@@ -471,11 +474,15 @@ export default function Home() {
       ws.current.send(
         JSON.stringify({
           action: "scrapeCategories",
-          maxCategories, // Limit for testing
+          maxCategories,
+          categoryFilter: categoryFilter.trim()
         }),
       )
 
-      toast.success(`Scraping ${maxCategories} categories...`, {
+      const message = categoryFilter
+        ? `Searching for "${categoryFilter}" categories...`
+        : `Scraping all ${maxCategories} categories...`
+      toast.success(message, {
         icon: "🔍",
         duration: 3000
       })
@@ -522,114 +529,6 @@ export default function Home() {
           isLocationSet={isLocationSet}
           currentLocation={currentLocation}
         />
-
-        {/* Category Scraping Section for Zepto */}
-        {isLocationSet && (
-          <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-            <h3 className="text-lg font-semibold text-purple-900 mb-3">🛒 Zepto Category Scraping</h3>
-            <div className="flex gap-3 items-center flex-wrap">
-              <button
-                onClick={() => handleScrapeCategories(5)}
-                disabled={isScrapingCategories || !isConnected}
-                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-              >
-                {isScrapingCategories ? "Scraping..." : "Scrape 5 Categories"}
-              </button>
-              <button
-                onClick={() => handleScrapeCategories(10)}
-                disabled={isScrapingCategories || !isConnected}
-                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-              >
-                {isScrapingCategories ? "Scraping..." : "Scrape 10 Categories"}
-              </button>
-              <button
-                onClick={() => handleScrapeCategories(334)}
-                disabled={isScrapingCategories || !isConnected}
-                className="px-4 py-2 bg-purple-700 text-white rounded-md hover:bg-purple-800 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold"
-              >
-                {isScrapingCategories ? "Scraping..." : "Scrape ALL 334 Categories"}
-              </button>
-            </div>
-
-            {isScrapingCategories && categoryProgress.total > 0 && (
-              <div className="mt-4">
-                <div className="flex justify-between text-sm text-purple-700 mb-1">
-                  <span>Progress: {categoryProgress.current} / {categoryProgress.total}</span>
-                  <span>{Math.round((categoryProgress.current / categoryProgress.total) * 100)}%</span>
-                </div>
-                <div className="w-full bg-purple-200 rounded-full h-2.5">
-                  <div
-                    className="bg-purple-600 h-2.5 rounded-full transition-all duration-300"
-                    style={{ width: `${(categoryProgress.current / categoryProgress.total) * 100}%` }}
-                  ></div>
-                </div>
-                <p className="text-sm text-purple-600 mt-2">Currently scraping: {categoryProgress.categoryName}</p>
-              </div>
-            )}
-
-            {categoryResults.length > 0 && (
-              <div className="mt-4">
-                <div className="flex justify-between items-center mb-2">
-                  <h4 className="font-semibold text-purple-900">
-                    Results: {categoryResults.reduce((sum, cat) => sum + cat.productCount, 0)} products from {categoryResults.length} categories
-                  </h4>
-                  <button
-                    onClick={() => {
-                      const dataStr = JSON.stringify(categoryResults, null, 2)
-                      const dataBlob = new Blob([dataStr], { type: 'application/json' })
-                      const url = URL.createObjectURL(dataBlob)
-                      const link = document.createElement('a')
-                      link.href = url
-                      link.download = `zepto-categories-${new Date().toISOString().split('T')[0]}.json`
-                      link.click()
-                      URL.revokeObjectURL(url)
-                      toast.success('Results downloaded!', { icon: '📥' })
-                    }}
-                    className="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors"
-                  >
-                    📥 Download JSON
-                  </button>
-                </div>
-                <div className="max-h-96 overflow-y-auto bg-white p-3 rounded border border-purple-200">
-                  {categoryResults.map((result, idx) => (
-                    <details key={idx} className="mb-3 pb-3 border-b border-purple-100 last:border-0">
-                      <summary className="cursor-pointer font-medium text-purple-800 hover:text-purple-600 py-2">
-                        {result.category} ({result.productCount} products) ▼
-                      </summary>
-                      {result.products && result.products.length > 0 && (
-                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {result.products.slice(0, 12).map((product: any, pIdx: number) => (
-                            <div key={pIdx} className="border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow bg-white">
-                              {product.imageUrl && (
-                                <img
-                                  src={product.imageUrl}
-                                  alt={product.name}
-                                  className="w-full h-32 object-contain mb-2 rounded"
-                                  loading="lazy"
-                                />
-                              )}
-                              <h5 className="text-sm font-semibold text-gray-800 line-clamp-2 mb-1">{product.name}</h5>
-                              <p className="text-purple-600 font-bold text-sm">{product.price}</p>
-                              <p className="text-xs text-gray-500">{product.quantity}</p>
-                              {product.rating && (
-                                <p className="text-xs text-yellow-600 mt-1">⭐ {product.rating}</p>
-                              )}
-                            </div>
-                          ))}
-                          {result.products.length > 12 && (
-                            <div className="col-span-full text-center text-sm text-gray-500 italic">
-                              + {result.products.length - 12} more products (download JSON for full list)
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </details>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {(isLoading || isLoadingSearch) && loadingMessage && (
           <LoadingIndicator message={loadingMessage} />
@@ -691,6 +590,184 @@ export default function Home() {
           </div>
         ) : (
           <div>
+            {/* Category Scraping Section - Only for Zepto */}
+            {activeService === "zepto" && isLocationSet && (
+              <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                <h3 className="text-lg font-semibold text-purple-900 mb-3">🛒 Zepto Category Scraping</h3>
+
+                {/* Category Search or Scrape All */}
+                <div className="space-y-3">
+                  {/* Search specific category */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      placeholder="Search category (e.g., beverages, snacks, dairy...)"
+                      value={categorySearchTerm}
+                      onChange={(e) => setCategorySearchTerm(e.target.value)}
+                      className="flex-1 border-purple-300 focus:border-purple-500 focus:ring-purple-500"
+                      disabled={isScrapingCategories}
+                    />
+                    <button
+                      onClick={() => {
+                        if (categorySearchTerm.trim()) {
+                          handleScrapeCategories(0, categorySearchTerm)
+                        }
+                      }}
+                      disabled={isScrapingCategories || !isConnected || !categorySearchTerm.trim()}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                    >
+                      {isScrapingCategories ? "Scraping..." : "🔍 Search & Scrape"}
+                    </button>
+                  </div>
+
+                  {/* OR divider */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 border-t border-purple-300"></div>
+                    <span className="text-sm text-purple-600 font-medium">OR</span>
+                    <div className="flex-1 border-t border-purple-300"></div>
+                  </div>
+
+                  {/* Scrape all categories */}
+                  <button
+                    onClick={() => handleScrapeCategories(334, "")}
+                    disabled={isScrapingCategories || !isConnected}
+                    className="w-full px-4 py-2 bg-purple-700 text-white rounded-md hover:bg-purple-800 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold"
+                  >
+                    {isScrapingCategories ? "Scraping..." : "📦 Scrape ALL 334 Categories"}
+                  </button>
+                </div>
+
+                {isScrapingCategories && categoryProgress.total > 0 && (
+                  <div className="mt-4">
+                    <div className="flex justify-between text-sm text-purple-700 mb-1">
+                      <span>Progress: {categoryProgress.current} / {categoryProgress.total}</span>
+                      <span>{Math.round((categoryProgress.current / categoryProgress.total) * 100)}%</span>
+                    </div>
+                    <div className="w-full bg-purple-200 rounded-full h-2.5">
+                      <div
+                        className="bg-purple-600 h-2.5 rounded-full transition-all duration-300"
+                        style={{ width: `${(categoryProgress.current / categoryProgress.total) * 100}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-sm text-purple-600 mt-2">Currently scraping: {categoryProgress.categoryName}</p>
+                  </div>
+                )}
+
+                {categoryResults.length > 0 && (
+                  <div className="mt-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="font-semibold text-purple-900">
+                        Results: {categoryResults.reduce((sum, cat) => sum + cat.productCount, 0)} products from {categoryResults.length} categories
+                      </h4>
+                      <button
+                        onClick={() => {
+                          // Create workbook
+                          const wb = XLSX.utils.book_new();
+
+                          // Create a flattened dataset for Excel
+                          const excelData: any[] = [];
+
+                          categoryResults.forEach(result => {
+                            if (result.products && result.products.length > 0) {
+                              result.products.forEach((product: any) => {
+                                excelData.push({
+                                  'Category': result.category,
+                                  'Main Category': result.mainCategory,
+                                  'Sub Category': result.subCategory,
+                                  'Product Name': product.name,
+                                  'Price': product.price,
+                                  'Quantity': product.quantity,
+                                  'Rating': product.rating || 'N/A',
+                                  'Image URL': product.imageUrl,
+                                  'Available': product.available ? 'Yes' : 'No'
+                                });
+                              });
+                            } else {
+                              // Add category even if no products
+                              excelData.push({
+                                'Category': result.category,
+                                'Main Category': result.mainCategory,
+                                'Sub Category': result.subCategory,
+                                'Product Name': 'No products found',
+                                'Price': '',
+                                'Quantity': '',
+                                'Rating': '',
+                                'Image URL': '',
+                                'Available': ''
+                              });
+                            }
+                          });
+
+                          // Create worksheet
+                          const ws = XLSX.utils.json_to_sheet(excelData);
+
+                          // Set column widths
+                          ws['!cols'] = [
+                            { wch: 30 }, // Category
+                            { wch: 20 }, // Main Category
+                            { wch: 20 }, // Sub Category
+                            { wch: 40 }, // Product Name
+                            { wch: 12 }, // Price
+                            { wch: 12 }, // Quantity
+                            { wch: 10 }, // Rating
+                            { wch: 50 }, // Image URL
+                            { wch: 10 }  // Available
+                          ];
+
+                          // Add worksheet to workbook
+                          XLSX.utils.book_append_sheet(wb, ws, "Zepto Products");
+
+                          // Generate and download
+                          const fileName = `zepto-categories-${new Date().toISOString().split('T')[0]}.xlsx`;
+                          XLSX.writeFile(wb, fileName);
+
+                          toast.success('Excel file downloaded!', { icon: '📥' });
+                        }}
+                        className="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors"
+                      >
+                        📥 Download Excel
+                      </button>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto bg-white p-3 rounded border border-purple-200">
+                      {categoryResults.map((result, idx) => (
+                        <details key={idx} className="mb-3 pb-3 border-b border-purple-100 last:border-0">
+                          <summary className="cursor-pointer font-medium text-purple-800 hover:text-purple-600 py-2">
+                            {result.category} ({result.productCount} products) ▼
+                          </summary>
+                          {result.products && result.products.length > 0 && (
+                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {result.products.slice(0, 12).map((product: any, pIdx: number) => (
+                                <div key={pIdx} className="border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow bg-white">
+                                  {product.imageUrl && (
+                                    <img
+                                      src={product.imageUrl}
+                                      alt={product.name}
+                                      className="w-full h-32 object-contain mb-2 rounded"
+                                      loading="lazy"
+                                    />
+                                  )}
+                                  <h5 className="text-sm font-semibold text-gray-800 line-clamp-2 mb-1">{product.name}</h5>
+                                  <p className="text-purple-600 font-bold text-sm">{product.price}</p>
+                                  <p className="text-xs text-gray-500">{product.quantity}</p>
+                                  {product.rating && (
+                                    <p className="text-xs text-yellow-600 mt-1">⭐ {product.rating}</p>
+                                  )}
+                                </div>
+                              ))}
+                              {result.products.length > 12 && (
+                                <div className="col-span-full text-center text-sm text-gray-500 italic">
+                                  + {result.products.length - 12} more products (download JSON for full list)
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </details>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <ProductList
               products={services[activeService].products}
               serviceName={activeService}
