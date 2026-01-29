@@ -37,6 +37,14 @@ coverage/
 .tmp/
 .temp/
 
+# Database
+postgres-data/
+pgadmin-data/
+*.db
+*.sqlite
+*.sqlite3
+test-db/
+
 # Scraped data files
 *.csv
 *.xlsx

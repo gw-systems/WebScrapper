@@ -127,6 +127,60 @@ class CategoryExcelWriter {
     }
 
     /**
+     * Generate a buffer containing all products in a single sheet
+     * @param {Array} products - Array of product objects
+     * @returns {Promise<Buffer>} Excel file buffer
+     */
+    async generateExcel(products) {
+        const workbook = new ExcelJS.Workbook();
+        const sheetName = 'All Products';
+        const worksheet = workbook.addWorksheet(sheetName);
+
+        // Define columns
+        worksheet.columns = [
+            { header: 'Category', key: 'category', width: 30 },
+            { header: 'Main Category', key: 'mainCategory', width: 25 },
+            { header: 'Sub Category', key: 'subCategory', width: 25 },
+            { header: 'Brand', key: 'brand', width: 25 },
+            { header: 'Product Name', key: 'name', width: 50 },
+            { header: 'Price', key: 'price', width: 12 },
+            { header: 'Quantity', key: 'quantity', width: 20 },
+            { header: 'Rating', key: 'rating', width: 12 },
+            { header: 'Image URL', key: 'imageUrl', width: 60 },
+            { header: 'Available', key: 'available', width: 12 }
+        ];
+
+        // Style header row
+        const headerRow = worksheet.getRow(1);
+        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        headerRow.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF4472C4' }
+        };
+
+        // Add product rows
+        if (products && products.length > 0) {
+            products.forEach(product => {
+                worksheet.addRow({
+                    category: product.category || '',
+                    mainCategory: product.mainCategory || '',
+                    subCategory: product.subCategory || '',
+                    brand: product.brand || 'Unknown',
+                    name: product.name || '',
+                    price: product.price || '',
+                    quantity: product.quantity || '',
+                    rating: product.rating || '',
+                    imageUrl: product.imageUrl || '',
+                    available: product.available ? 'Yes' : 'No'
+                });
+            });
+        }
+
+        return await workbook.xlsx.writeBuffer();
+    }
+
+    /**
      * Sanitize sheet name to comply with Excel restrictions
      * - Max 31 characters
      * - Cannot contain: : \ / ? * [ ]
