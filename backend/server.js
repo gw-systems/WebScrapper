@@ -880,12 +880,9 @@ async function handleScrapeCategories(socket, cid, data) {
   }
 
   const page = pgs.zepto;
-  const { maxCategories = 10, categoryFilter, excludedCategories = [] } = data;
+  const { maxCategories = 10, categoryFilter } = data;
 
   try {
-    // Initialize Excel writer
-    const excelPath = path.join(__dirname, '..', 'zepto-all-categories.xlsx');
-    const excelWriter = new CategoryExcelWriter(excelPath);
 
     // Step 1: Fetch all categories
     socket.send(
@@ -897,7 +894,7 @@ async function handleScrapeCategories(socket, cid, data) {
       })
     );
 
-    const allCategories = await getAllCategories(excludedCategories);
+    const allCategories = await getAllCategories();
 
     if (allCategories.length === 0) {
       socket.send(
@@ -1010,38 +1007,6 @@ async function handleScrapeCategories(socket, cid, data) {
           })
         );
 
-        // Check if we've completed all categories for this main category
-        const mainCatCategories = mainCategoryMap.get(category.mainCategory);
-        const scrapedInMainCat = categoryResults.filter(r => r.mainCategory === category.mainCategory).length;
-
-        if (scrapedInMainCat === mainCatCategories.length && !completedMainCategories.includes(category.mainCategory)) {
-          // This main category is complete, add sheet to Excel
-          const mainCatProducts = mainCategoryProducts.get(category.mainCategory);
-
-          try {
-            await excelWriter.addMainCategorySheet(category.mainCategory, mainCatProducts);
-            await excelWriter.save();
-
-            completedMainCategories.push(category.mainCategory);
-
-            // Notify frontend that a main category sheet was added
-            socket.send(
-              JSON.stringify({
-                action: "mainCategoryCompleted",
-                mainCategory: category.mainCategory,
-                productCount: mainCatProducts.length,
-                completedMainCategories: completedMainCategories.length,
-                totalMainCategories: mainCategoryMap.size,
-                excelPath: excelPath
-              })
-            );
-
-            console.log(`✓ Added Excel sheet for: ${category.mainCategory} (${mainCatProducts.length} products)`);
-          } catch (excelError) {
-            console.error(`Error adding Excel sheet for ${category.mainCategory}:`, excelError);
-          }
-        }
-
         // Add delay between categories to avoid rate limiting
         await new Promise(r => setTimeout(r, 2000));
 
@@ -1079,6 +1044,7 @@ async function handleScrapeCategories(socket, cid, data) {
           successfulCategories: scrapedCount,
           totalProducts: totalProducts,
         },
+        isAllCategories: !categoryFilter && maxCategories >= 334
       })
     );
 

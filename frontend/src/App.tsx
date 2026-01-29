@@ -1,10 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { SearchForm } from "@/components/SearchForm"
-import { ProductList } from "@/components/ProductList"
 import { LoadingIndicator } from "@/components/loading-indicator"
-import { Package2, AlertCircle, MapPin } from "lucide-react"
+import { Package2, AlertCircle } from "lucide-react"
 import { Toaster, toast } from "react-hot-toast"
 import * as XLSX from "xlsx"
 import { Input } from "@/components/ui/input"
@@ -22,79 +20,75 @@ const getWebsocketUrl = () => {
   return "ws://localhost:5000";
 }
 const WS_URL = getWebsocketUrl();
-type Service = "blinkit" | "zepto" | "instamart"
 
-interface Product {
-  id: string
-  name: string
-  price: string
-  originalPrice: string | null
-  savings: string | null
-  quantity: string
-  deliveryTime: string
-  discount: string | null
-  imageUrl: string
-  available: boolean
-  source?: Service
-}
+type Service = "zepto" | "blinkit" | "instamart"
 
-type ServiceStatus = "pending" | "loading" | "success" | "error" | "empty"
-interface ServiceState {
-  status: ServiceStatus
-  message: string
-  products: Product[]
-  isLoading: boolean
+interface ServiceData {
   logo: string
   color: string
+  name: string
+}
+
+const SERVICE_INFO: Record<Service, ServiceData> = {
+  zepto: { logo: "/src/assets/zepto.png", color: "purple", name: "Zepto" },
+  blinkit: { logo: "/src/assets/blinkit.png", color: "green", name: "Blinkit" },
+  instamart: { logo: "/src/assets/instamart.png", color: "orange", name: "Instamart" }
 }
 
 export default function Home() {
   const [isConnected, setIsConnected] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [isLoadingLocation, setIsLoadingLocation] = useState(false)
-  const [isLoadingSearch, setIsLoadingSearch] = useState(false)
-  const [isLocationSet, setIsLocationSet] = useState(false)
-  const [currentLocation, setCurrentLocation] = useState<string | null>(null)
   const [loadingMessage, setLoadingMessage] = useState("")
+  const [error, setError] = useState("")
 
-  // Category scraping state
-  const [isScrapingCategories, setIsScrapingCategories] = useState(false)
-  const [categoryProgress, setCategoryProgress] = useState({ current: 0, total: 0, categoryName: "", mainCategory: "" })
-  const [categoryResults, setCategoryResults] = useState<any[]>([])
-  const [categorySearchTerm, setCategorySearchTerm] = useState("")
-  const [excludedCategories, setExcludedCategories] = useState<string[]>(["masala", "breakfast", "atta"])
-  const [completedMainCategories, setCompletedMainCategories] = useState<string[]>([])
-  const [totalMainCategories, setTotalMainCategories] = useState(0)
-  const [excelFilePath, setExcelFilePath] = useState<string | null>(null)
+  // Unified location state (applies to all services)
+  const [locationStatus, setLocationStatus] = useState({
+    isSet: false,
+    location: "",
+    isLoading: false
+  })
 
-  const [services, setServices] = useState<Record<Service, ServiceState>>({
-    blinkit: {
-      status: "pending",
-      message: "Ready",
-      products: [],
-      isLoading: false,
-      logo: "/src/assets/blinkit.png",
-      color: "green"
-    },
+  // Active service tab
+  const [activeService, setActiveService] = useState<Service>("zepto")
+
+  // Per-service category scraping state
+  const [serviceCategoryState, setServiceCategoryState] = useState<Record<Service, {
+    isScrapingCategories: boolean
+    categoryProgress: { current: number, total: number, categoryName: string, mainCategory: string }
+    categoryResults: { category?: string, productCount: number, products?: unknown[] }[]
+    categorySearchTerm: string
+    completedMainCategories: string[]
+    totalMainCategories: number
+    excelFilePath: string | null
+  }>>({
     zepto: {
-      status: "pending",
-      message: "Ready",
-      products: [],
-      isLoading: false,
-      logo: "/src/assets/zepto.png",
-      color: "purple"
+      isScrapingCategories: false,
+      categoryProgress: { current: 0, total: 0, categoryName: "", mainCategory: "" },
+      categoryResults: [],
+      categorySearchTerm: "",
+      completedMainCategories: [],
+      totalMainCategories: 0,
+      excelFilePath: null
+    },
+    blinkit: {
+      isScrapingCategories: false,
+      categoryProgress: { current: 0, total: 0, categoryName: "", mainCategory: "" },
+      categoryResults: [],
+      categorySearchTerm: "",
+      completedMainCategories: [],
+      totalMainCategories: 0,
+      excelFilePath: null
     },
     instamart: {
-      status: "pending",
-      message: "Ready",
-      products: [],
-      isLoading: false,
-      logo: "/src/assets/instamart.png",
-      color: "orange"
+      isScrapingCategories: false,
+      categoryProgress: { current: 0, total: 0, categoryName: "", mainCategory: "" },
+      categoryResults: [],
+      categorySearchTerm: "",
+      completedMainCategories: [],
+      totalMainCategories: 0,
+      excelFilePath: null
     }
   })
-  const [activeService, setActiveService] = useState<Service | null>(null)
-  const [error, setError] = useState("")
 
   const ws = useRef<WebSocket | null>(null)
 
@@ -172,10 +166,17 @@ export default function Home() {
 
               // Handle category scraping status
               if (data.step === "scrapeCategories") {
+                const service = (data.service || activeService) as Service
                 if (data.status === "loading") {
-                  setIsScrapingCategories(true)
+                  setServiceCategoryState(prev => ({
+                    ...prev,
+                    [service]: { ...prev[service], isScrapingCategories: true }
+                  }))
                 } else if (data.status === "completed") {
-                  setIsScrapingCategories(false)
+                  setServiceCategoryState(prev => ({
+                    ...prev,
+                    [service]: { ...prev[service], isScrapingCategories: false }
+                  }))
                   toast.success(data.message || "Category scraping completed!", {
                     icon: "✅",
                     duration: 5000,
@@ -185,7 +186,10 @@ export default function Home() {
                     }
                   })
                 } else if (data.status === "error") {
-                  setIsScrapingCategories(false)
+                  setServiceCategoryState(prev => ({
+                    ...prev,
+                    [service]: { ...prev[service], isScrapingCategories: false }
+                  }))
                   toast.error(data.message || "Category scraping failed.", { icon: "❌" })
                 }
               }
@@ -208,75 +212,26 @@ export default function Home() {
                   setLoadingMessage("")
                 }
               } else if (data.step === "setLocation") {
-                setIsLoadingLocation(data.status === "loading")
-                if (data.status === "completed") {
-                  if (data.success) {
-                    setIsLocationSet(true)
-                    if (data.locationResults) {
-                      const locationMessages = data.locationResults
-                        .map((r: any) => `${r.service}: ${r.success ? '✅' : '❌'}`)
-                        .join(', ')
-                      setCurrentLocation(`${locationMessages}`)
-                      toast.success(`Location set! ${locationMessages}`, {
-                        icon: "📍",
-                        style: {
-                          background: '#10b981',
-                          color: 'white',
-                        }
-                      })
-                    } else {
-                      setCurrentLocation("Set on one or more services")
-                      toast.success(data.message || "Location set!", {
-                        icon: "📍",
-                        style: {
-                          background: '#10b981',
-                          color: 'white',
-                        }
-                      })
-                    }
+                // Update location status for all services
+                if (data.locationResults) {
+                  const allSuccess = data.locationResults.every((r: { success: boolean }) => r.success)
+                  setLocationStatus(prev => ({
+                    ...prev,
+                    isSet: allSuccess,
+                    isLoading: false
+                  }))
+
+                  if (allSuccess) {
+                    toast.success('Location set for all services', {
+                      icon: "📍",
+                      style: {
+                        background: '#10b981',
+                        color: 'white',
+                      }
+                    })
                   } else {
-                    setIsLocationSet(false)
-                    setCurrentLocation(null)
-                    toast.error(data.message || "Failed to set location.", { icon: "🗺️❌" })
+                    toast.error('Failed to set location for some services', { icon: "🗺️❌" })
                   }
-                } else if (data.status === "error") {
-                  setIsLocationSet(false)
-                  setCurrentLocation(null)
-                  toast.error(data.message || "Error setting location.", { icon: "🗺️🔥" })
-                }
-              } else if (data.step === "search") {
-                setIsLoadingSearch(data.status === "loading")
-                if (data.status === "completed") {
-                  setIsLoadingSearch(false)
-                  setLoadingMessage("")
-                } else if (data.status === "error") {
-                  setError(data.message || `Search error`)
-                  setIsLoadingSearch(false)
-                  setLoadingMessage("")
-                  toast.error(data.message || "Search error", { icon: "🔍❌" })
-                }
-              }
-              return
-            }
-            if (data.action === "serviceSearchUpdate") {
-              const { service, status, message } = data
-
-              if (service && ["blinkit", "zepto", "instamart"].includes(service)) {
-                setServices(prev => ({
-                  ...prev,
-                  [service]: {
-                    ...prev[service as Service],
-                    status: status as ServiceStatus,
-                    message: message || prev[service as Service].message,
-                    isLoading: status === "loading" || status === "navigating" || status === "extracting"
-                  }
-                }))
-
-                if (status === "error") {
-                  toast.error(`${service}: ${message}`, {
-                    duration: 2000,
-                    style: { background: '#fee2e2' }
-                  })
                 }
               }
               return
@@ -286,92 +241,49 @@ export default function Home() {
               setError(data.message || `Error: ${data.action || 'unknown'}`)
               toast.error(data.message || `Error: ${data.action || 'operation'}`, { icon: "🔥" })
               setIsLoading(false)
-              setIsLoadingLocation(false)
-              setIsLoadingSearch(false)
               setLoadingMessage("")
               return
             }
 
             switch (data.action) {
-              case "searchResults":
-                setIsLoadingSearch(false)
-                setLoadingMessage("")
-
-                if (data.products) {
-                  setServices(prev => ({
-                    blinkit: {
-                      ...prev.blinkit,
-                      products: data.products.blinkit || [],
-                      status: data.products.blinkit?.length > 0 ? "success" : "empty",
-                      isLoading: false,
-                      message: data.products.blinkit?.length > 0
-                        ? `Found ${data.products.blinkit.length} products`
-                        : "No products found"
-                    },
-                    zepto: {
-                      ...prev.zepto,
-                      products: data.products.zepto || [],
-                      status: data.products.zepto?.length > 0 ? "success" : "empty",
-                      isLoading: false,
-                      message: data.products.zepto?.length > 0
-                        ? `Found ${data.products.zepto.length} products`
-                        : "No products found"
-                    },
-                    instamart: {
-                      ...prev.instamart,
-                      products: data.products.instamart || [],
-                      status: data.products.instamart?.length > 0 ? "success" : "empty",
-                      isLoading: false,
-                      message: data.products.instamart?.length > 0
-                        ? `Found ${data.products.instamart.length} products`
-                        : "No products found"
-                    }
-                  }))
-
-                  const totalCount = data.productCount?.total || 0
-
-                  if (totalCount > 0) {
-                    toast.success(`Found ${totalCount} products across all services!`, {
-                      icon: "🛍️",
-                      style: {
-                        background: '#3b82f6',
-                        color: 'white',
-                      }
-                    })
-                  } else {
-                    toast("No products found on any service.", {
-                      icon: '🤔',
-                      style: {
-                        background: '#fef3c7',
-                        color: '#92400e'
-                      }
-                    })
-                  }
-                }
-                break
-
               case "categoryProgress":
-                setCategoryProgress({
-                  current: data.current || 0,
-                  total: data.total || 0,
-                  categoryName: data.categoryName || "",
-                  mainCategory: data.mainCategory || ""
-                })
+                setServiceCategoryState(prev => ({
+                  ...prev,
+                  [activeService]: {
+                    ...prev[activeService],
+                    categoryProgress: {
+                      current: data.current || 0,
+                      total: data.total || 0,
+                      categoryName: data.categoryName || "",
+                      mainCategory: data.mainCategory || ""
+                    }
+                  }
+                }))
                 break
 
               case "categoryScraped":
-                // Accumulate results as each category is scraped
-                setCategoryResults(prev => [...prev, {
-                  category: data.category,
-                  productCount: data.productCount || 0
-                }])
+                setServiceCategoryState(prev => ({
+                  ...prev,
+                  [activeService]: {
+                    ...prev[activeService],
+                    categoryResults: [...prev[activeService].categoryResults, {
+                      category: data.category,
+                      productCount: data.productCount || 0
+                    }]
+                  }
+                }))
                 break
 
               case "mainCategoryCompleted":
-                // Main category Excel sheet added
-                setCompletedMainCategories(prev => [...prev, data.mainCategory])
-                setTotalMainCategories(data.totalMainCategories || 0)
-                setExcelFilePath(data.excelPath || null)
+                setServiceCategoryState(prev => ({
+                  ...prev,
+                  [activeService]: {
+                    ...prev[activeService],
+                    completedMainCategories: [...prev[activeService].completedMainCategories, data.mainCategory],
+                    totalMainCategories: data.totalMainCategories || 0,
+                    excelFilePath: data.excelPath || null
+                  }
+                }))
 
                 toast.success(`✅ ${data.mainCategory} completed! Sheet added to Excel (${data.productCount} products)`, {
                   icon: "📊",
@@ -384,7 +296,13 @@ export default function Home() {
                 break
 
               case "categoryScrapeResults":
-                setCategoryResults(data.results || [])
+                setServiceCategoryState(prev => ({
+                  ...prev,
+                  [activeService]: {
+                    ...prev[activeService],
+                    categoryResults: data.results || []
+                  }
+                }))
                 console.log("Category scrape results:", data)
                 break
 
@@ -427,9 +345,9 @@ export default function Home() {
       return
     }
     try {
-      setIsLoadingLocation(true)
-      setCurrentLocation(null)
-      setLoadingMessage(`Setting location to ${location} on all services...`)
+      setLocationStatus({ ...locationStatus, location, isLoading: true })
+      setLoadingMessage(`Setting location to ${location} for all services...`)
+
       ws.current.send(
         JSON.stringify({
           action: "setLocation",
@@ -439,40 +357,7 @@ export default function Home() {
     } catch (error) {
       console.error("Error sending setLocation request:", error)
       toast.error("Failed to send setLocation request.")
-      setIsLoadingLocation(false)
-    }
-  }
-
-  const handleSearch = (searchTerm: string) => {
-    if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
-      toast.error("Connection not ready. Please wait.")
-      return
-    }
-    if (!isLocationSet) {
-      toast.error("Please set the location before searching.")
-      return
-    }
-
-    try {
-      setServices(prev => ({
-        blinkit: { ...prev.blinkit, status: "loading", isLoading: true, message: "Searching..." },
-        zepto: { ...prev.zepto, status: "loading", isLoading: true, message: "Searching..." },
-        instamart: { ...prev.instamart, status: "loading", isLoading: true, message: "Searching..." }
-      }))
-
-      setIsLoadingSearch(true)
-      setLoadingMessage(`Searching for ${searchTerm} across all services...`)
-
-      ws.current.send(
-        JSON.stringify({
-          action: "search",
-          searchTerm,
-        }),
-      )
-    } catch (error) {
-      console.error("Error sending search request:", error)
-      toast.error("Failed to send search request.")
-      setIsLoadingSearch(false)
+      setLocationStatus({ ...locationStatus, isLoading: false })
     }
   }
 
@@ -481,33 +366,37 @@ export default function Home() {
       toast.error("Connection not ready. Please wait.")
       return
     }
-    if (!isLocationSet) {
+    if (!locationStatus.isSet) {
       toast.error("Please set the location before scraping categories.")
       return
     }
 
     try {
-      setIsScrapingCategories(true)
-      setCategoryProgress({ current: 0, total: 0, categoryName: "", mainCategory: "" })
-      setCategoryResults([])
-      setCompletedMainCategories([])
-      setTotalMainCategories(0)
-      setExcelFilePath(null)
+      setServiceCategoryState(prev => ({
+        ...prev,
+        [activeService]: {
+          ...prev[activeService],
+          isScrapingCategories: true,
+          categoryProgress: { current: 0, total: 0, categoryName: "", mainCategory: "" },
+          categoryResults: [],
+          completedMainCategories: [],
+          totalMainCategories: 0,
+          excelFilePath: null
+        }
+      }))
       setLoadingMessage(`Starting category scraping...`)
 
       ws.current.send(
         JSON.stringify({
           action: "scrapeCategories",
           maxCategories,
-          categoryFilter: categoryFilter.trim(),
-          excludedCategories: excludedCategories
+          categoryFilter: categoryFilter.trim()
         }),
       )
 
-      const excludedMsg = excludedCategories.length > 0 ? ` (excluding: ${excludedCategories.join(", ")})` : "";
       const message = categoryFilter
-        ? `Searching for "${categoryFilter}" categories${excludedMsg}...`
-        : `Scraping all ${maxCategories} categories${excludedMsg}...`
+        ? `Searching for "${categoryFilter}" categories...`
+        : `Scraping all ${maxCategories} categories...`
       toast.success(message, {
         icon: "🔍",
         duration: 3000
@@ -515,8 +404,270 @@ export default function Home() {
     } catch (error) {
       console.error("Error sending scrapeCategories request:", error)
       toast.error("Failed to start category scraping.")
-      setIsScrapingCategories(false)
+      setServiceCategoryState(prev => ({
+        ...prev,
+        [activeService]: { ...prev[activeService], isScrapingCategories: false }
+      }))
     }
+  }
+
+  const downloadCategoryExcel = () => {
+    const currentState = serviceCategoryState[activeService]
+    if (currentState.categoryResults.length === 0) {
+      toast.error("No scraped data to download")
+      return
+    }
+
+    // Flatten all products from all category results
+    const allProducts: unknown[] = []
+    currentState.categoryResults.forEach(categoryResult => {
+      if (categoryResult.products && categoryResult.products.length > 0) {
+        categoryResult.products.forEach((product: unknown) => {
+          allProducts.push({
+            'Category': (product as { category?: string }).category || categoryResult.category || 'Unknown',
+            'Main Category': (product as { mainCategory?: string }).mainCategory || 'Unknown',
+            'Sub Category': (product as { subCategory?: string }).subCategory || 'Unknown',
+            'Brand': (product as { brand?: string }).brand || 'Unknown',
+            'Product Name': (product as { name?: string; productName?: string }).name || (product as { productName?: string }).productName || 'Unknown',
+            'Price': (product as { price?: string }).price || 'N/A',
+            'Quantity': (product as { quantity?: string }).quantity || 'N/A',
+            'Rating': (product as { rating?: string }).rating || 'N/A',
+            'Image URL': (product as { imageUrl?: string; image?: string }).imageUrl || (product as { image?: string }).image || 'N/A',
+            'Available': (product as { available?: boolean }).available ? 'Yes' : 'No'
+          })
+        })
+      }
+    })
+
+    if (allProducts.length === 0) {
+      toast.error("No products found in scraped data")
+      return
+    }
+
+    const wb = XLSX.utils.book_new()
+
+    // If search term was used -> Single sheet
+    // If "Scrape ALL 334" -> Multi-sheet by main category
+    if (currentState.categorySearchTerm && currentState.categorySearchTerm.trim() !== "") {
+      // Single sheet for search results
+      const ws = XLSX.utils.json_to_sheet(allProducts)
+
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 25 }, // Category
+        { wch: 25 }, // Main Category
+        { wch: 25 }, // Sub Category
+        { wch: 20 }, // Brand
+        { wch: 50 }, // Product Name
+        { wch: 12 }, // Price
+        { wch: 20 }, // Quantity
+        { wch: 12 }, // Rating
+        { wch: 60 }, // Image URL
+        { wch: 12 }  // Available
+      ]
+
+      XLSX.utils.book_append_sheet(wb, ws, "Search Results")
+
+    } else {
+      // Multi-sheet by main category (for "Scrape ALL")
+
+      // Group products by main category
+      const grouped: Record<string, unknown[]> = {}
+      allProducts.forEach(product => {
+        const mainCat = (product as { 'Main Category': string })['Main Category']
+        if (!grouped[mainCat]) {
+          grouped[mainCat] = []
+        }
+        grouped[mainCat].push(product)
+      })
+
+      // Create a sheet for each main category
+      Object.keys(grouped).forEach(mainCat => {
+        const ws = XLSX.utils.json_to_sheet(grouped[mainCat])
+
+        // Set column widths
+        ws['!cols'] = [
+          { wch: 25 }, // Category
+          { wch: 25 }, // Main Category
+          { wch: 25 }, // Sub Category
+          { wch: 20 }, // Brand
+          { wch: 50 }, // Product Name
+          { wch: 12 }, // Price
+          { wch: 20 }, // Quantity
+          { wch: 12 }, // Rating
+          { wch: 60 }, // Image URL
+          { wch: 12 }  // Available
+        ]
+
+        // Sanitize sheet name (Excel has 31 char limit and special char restrictions)
+        const sheetName = mainCat
+          .replace(/[:\\\\/?*[\]]/g, '-') // Replace invalid chars
+          .substring(0, 31) // Limit to 31 chars
+
+        XLSX.utils.book_append_sheet(wb, ws, sheetName)
+      })
+    }
+
+    // Generate filename
+    const timestamp = new Date().toISOString().split('T')[0]
+    const fileName = currentState.categorySearchTerm
+      ? `${activeService}-search-${currentState.categorySearchTerm}-${timestamp}.xlsx`
+      : `${activeService}-all-categories-${timestamp}.xlsx`
+
+    // Download
+    XLSX.writeFile(wb, fileName)
+
+    toast.success('Excel file downloaded!', { icon: '📥' })
+  }
+
+  const renderCategoryScrapingSection = (service: Service) => {
+    const state = serviceCategoryState[service]
+    const serviceInfo = SERVICE_INFO[service]
+
+    return (
+      <div className={`mb-6 p-4 bg-${serviceInfo.color}-50 border border-${serviceInfo.color}-200 rounded-lg`}>
+        <h3 className={`text-lg font-semibold text-${serviceInfo.color}-900 mb-3`}>🛒 {serviceInfo.name} Category Scraping</h3>
+
+        {/* Main Category Progress */}
+        {state.totalMainCategories > 0 && (
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold text-green-800">
+                📊 Main Categories Progress: {state.completedMainCategories.length} / {state.totalMainCategories}
+              </p>
+              {state.excelFilePath && (
+                <a
+                  href={`/${state.excelFilePath.split('/').pop()}`}
+                  download
+                  className="text-xs px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                >
+                  📥 Download Excel
+                </a>
+              )}
+            </div>
+            <div className="w-full bg-green-200 rounded-full h-2.5">
+              <div
+                className="bg-green-600 h-2.5 rounded-full transition-all duration-300"
+                style={{ width: `${(state.completedMainCategories.length / state.totalMainCategories) * 100}%` }}
+              ></div>
+            </div>
+            {state.completedMainCategories.length > 0 && (
+              <div className="mt-2">
+                <p className="text-xs text-green-700 font-medium">Completed:</p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {state.completedMainCategories.map((cat, idx) => (
+                    <span key={idx} className="text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded">
+                      ✓ {cat}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Category Search or Scrape All */}
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Input
+              placeholder="Search category (e.g., beverages, snacks, dairy...)"
+              value={state.categorySearchTerm}
+              onChange={(e) => setServiceCategoryState(prev => ({
+                ...prev,
+                [service]: { ...prev[service], categorySearchTerm: e.target.value }
+              }))}
+              className={`flex-1 border-${serviceInfo.color}-300 focus:border-${serviceInfo.color}-500 focus:ring-${serviceInfo.color}-500`}
+              disabled={state.isScrapingCategories}
+            />
+            <button
+              onClick={() => {
+                if (state.categorySearchTerm.trim()) {
+                  handleScrapeCategories(0, state.categorySearchTerm)
+                }
+              }}
+              disabled={state.isScrapingCategories || !isConnected || !state.categorySearchTerm.trim()}
+              className={`px-4 py-2 bg-${serviceInfo.color}-600 text-white rounded-md hover:bg-${serviceInfo.color}-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors whitespace-nowrap`}
+            >
+              {state.isScrapingCategories ? "Scraping..." : "🔍 Search & Scrape"}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className={`flex-1 border-t border-${serviceInfo.color}-300`}></div>
+            <span className={`text-sm text-${serviceInfo.color}-600 font-medium`}>OR</span>
+            <div className={`flex-1 border-t border-${serviceInfo.color}-300`}></div>
+          </div>
+
+          <button
+            onClick={() => handleScrapeCategories(334, "")}
+            disabled={state.isScrapingCategories || !isConnected}
+            className={`w-full px-4 py-2 bg-${serviceInfo.color}-700 text-white rounded-md hover:bg-${serviceInfo.color}-800 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold`}
+          >
+            {state.isScrapingCategories ? "Scraping..." : "📦 Scrape ALL 334 Categories"}
+          </button>
+        </div>
+
+        {state.isScrapingCategories && state.categoryProgress.total > 0 && (
+          <div className="mt-4">
+            <div className={`flex justify-between text-sm text-${serviceInfo.color}-700 mb-1`}>
+              <span>Progress: {state.categoryProgress.current} / {state.categoryProgress.total}</span>
+              <span>{Math.round((state.categoryProgress.current / state.categoryProgress.total) * 100)}%</span>
+            </div>
+            <div className={`w-full bg-${serviceInfo.color}-200 rounded-full h-2.5`}>
+              <div
+                className={`bg-${serviceInfo.color}-600 h-2.5 rounded-full transition-all duration-300`}
+                style={{ width: `${(state.categoryProgress.current / state.categoryProgress.total) * 100}%` }}
+              ></div>
+            </div>
+            <div className="mt-2">
+              <p className={`text-sm text-${serviceInfo.color}-700 font-medium`}>
+                Currently scraping: <span className={`text-${serviceInfo.color}-900`}>{state.categoryProgress.categoryName}</span>
+              </p>
+              {state.categoryProgress.mainCategory && (
+                <p className={`text-xs text-${serviceInfo.color}-600`}>
+                  Main category: <span className="font-semibold">{state.categoryProgress.mainCategory}</span>
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Preview of scraped products */}
+        {state.categoryResults.length > 0 && (
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className={`text-md font-semibold text-${serviceInfo.color}-900`}>
+                Preview ({state.categoryResults.reduce((sum, cat) => sum + cat.productCount, 0)} products)
+              </h4>
+              <button
+                onClick={downloadCategoryExcel}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm font-medium"
+              >
+                📥 Download Excel
+              </button>
+            </div>
+            <div className={`bg-white rounded-lg p-4 max-h-96 overflow-y-auto border border-${serviceInfo.color}-200`}>
+              <table className="w-full text-sm">
+                <thead className="bg-gray-100 sticky top-0">
+                  <tr>
+                    <th className="p-2 text-left">Category</th>
+                    <th className="p-2 text-right">Product Count</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.categoryResults.map((result, idx) => (
+                    <tr key={idx} className="border-t hover:bg-gray-50">
+                      <td className="p-2">{result.category}</td>
+                      <td className="p-2 text-right font-medium">{result.productCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -528,14 +679,6 @@ export default function Home() {
             <Package2 className="h-8 w-8 mr-2 text-white" />
             <h1 className="text-xl sm:text-2xl font-bold">QuickCom Scraper</h1>
           </div>
-          <div className="flex items-center space-x-4">
-            {isLocationSet && currentLocation && (
-              <div className="hidden sm:flex items-center mr-4 p-2 bg-orange-400 rounded-md">
-                <MapPin className="h-4 w-4 mr-1.5" />
-                <span className="text-xs font-medium">{currentLocation}</span>
-              </div>
-            )}
-          </div>
         </div>
       </header>
 
@@ -546,320 +689,69 @@ export default function Home() {
             <span>{error}</span>
           </div>
         )}
-        <SearchForm
-          onSetLocation={handleSetLocation}
-          onSearch={handleSearch}
-          disabled={!isConnected || isLoading}
-          isLoadingLocation={isLoadingLocation}
-          isLoadingSearch={isLoadingSearch}
-          isLocationSet={isLocationSet}
-          currentLocation={currentLocation}
-        />
 
-        {(isLoading || isLoadingSearch) && loadingMessage && (
+        {isLoading && loadingMessage && (
           <LoadingIndicator message={loadingMessage} />
         )}
 
-        <div className="mb-6 border-b border-gray-200">
-          <ul className="flex flex-wrap -mb-px text-sm font-medium text-center">
-            <li className="mr-2">
+        {/* Unified Location Setting */}
+        {!locationStatus.isSet ? (
+          <div className="max-w-md mx-auto mt-8 p-6 bg-white rounded-lg shadow-md">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">
+              Set Location
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              This location will be used for all services (Zepto, Blinkit, Instamart)
+            </p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Enter location (e.g., Mumbai, Delhi...)"
+                value={locationStatus.location}
+                onChange={(e) => setLocationStatus({ ...locationStatus, location: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && locationStatus.location.trim()) {
+                    handleSetLocation(locationStatus.location)
+                  }
+                }}
+                disabled={!isConnected || locationStatus.isLoading}
+                className="flex-1"
+              />
               <button
-                className={`inline-block p-4 rounded-t-lg ${activeService === null ? 'border-b-2 border-yellow-500 text-yellow-600 font-semibold' : 'hover:text-gray-600 hover:border-gray-300'}`}
-                onClick={() => setActiveService(null)}
+                onClick={() => handleSetLocation(locationStatus.location)}
+                disabled={!isConnected || locationStatus.isLoading || !locationStatus.location.trim()}
+                className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
               >
-                All Services
+                {locationStatus.isLoading ? "Setting..." : "Set Location"}
               </button>
-            </li>
-            {Object.entries(services).map(([service, data]) => (
-              <li className="mr-2" key={service}>
-                <button
-                  className={`inline-block p-4 rounded-t-lg ${activeService === service ? `border-b-2 border-${data.color}-500 text-${data.color}-600 font-semibold` : 'hover:text-gray-600 hover:border-gray-300'}`}
-                  onClick={() => setActiveService(service as Service)}
-                >
-                  {service.charAt(0).toUpperCase() + service.slice(1)}
-                  {data.isLoading && (
-                    <span className="ml-2 inline-block w-4 h-4 border-2 border-t-transparent border-green-500 rounded-full animate-spin"></span>
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {activeService === null ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {Object.entries(services).map(([service, data]) => (
-              <div key={service} className="mb-6">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-lg font-bold capitalize flex items-center">
-                    <img src={data.logo} alt={`${service} logo`} className="h-6 w-auto mr-2" />
-                    {service}
-                    {data.isLoading && (
-                      <span className="ml-2 inline-block w-4 h-4 border-2 border-t-transparent border-green-500 rounded-full animate-spin"></span>
-                    )}
-                  </h2>
-                  <span className={`text-sm px-2 py-1 rounded ${data.status === 'success' ? 'bg-green-100 text-green-800' :
-                    data.status === 'error' ? 'bg-red-100 text-red-800' :
-                      data.status === 'empty' ? 'bg-gray-100 text-gray-800' :
-                        'bg-blue-100 text-blue-800'}`}>
-                    {data.products.length} items
-                  </span>
-                </div>
-                <ProductList
-                  products={data.products}
-                  isCompact={true}
-                  serviceName={service as Service}
-                  isLoading={data.isLoading}
-                />
-              </div>
-            ))}
+            </div>
           </div>
         ) : (
-          <div>
-            {/* Category Scraping Section - Only for Zepto */}
-            {activeService === "zepto" && isLocationSet && (
-              <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                <h3 className="text-lg font-semibold text-purple-900 mb-3">🛒 Zepto Category Scraping</h3>
-
-                {/* Excluded Categories Info */}
-                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                  <p className="text-sm text-yellow-800">
-                    <strong>📌 Excluded Categories:</strong> {excludedCategories.join(", ")}
-                  </p>
-                  <p className="text-xs text-yellow-600 mt-1">
-                    These categories will be filtered out during scraping.
-                  </p>
-                </div>
-
-                {/* Main Category Progress */}
-                {totalMainCategories > 0 && (
-                  <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-semibold text-green-800">
-                        📊 Main Categories Progress: {completedMainCategories.length} / {totalMainCategories}
-                      </p>
-                      {excelFilePath && (
-                        <a
-                          href={`/${excelFilePath.split('/').pop()}`}
-                          download
-                          className="text-xs px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                        >
-                          📥 Download Excel
-                        </a>
-                      )}
-                    </div>
-                    <div className="w-full bg-green-200 rounded-full h-2.5">
-                      <div
-                        className="bg-green-600 h-2.5 rounded-full transition-all duration-300"
-                        style={{ width: `${(completedMainCategories.length / totalMainCategories) * 100}%` }}
-                      ></div>
-                    </div>
-                    {completedMainCategories.length > 0 && (
-                      <div className="mt-2">
-                        <p className="text-xs text-green-700 font-medium">Completed:</p>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {completedMainCategories.map((cat, idx) => (
-                            <span key={idx} className="text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded">
-                              ✓ {cat}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Category Search or Scrape All */}
-                <div className="space-y-3">
-                  {/* Search specific category */}
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Input
-                      placeholder="Search category (e.g., beverages, snacks, dairy...)"
-                      value={categorySearchTerm}
-                      onChange={(e) => setCategorySearchTerm(e.target.value)}
-                      className="flex-1 border-purple-300 focus:border-purple-500 focus:ring-purple-500"
-                      disabled={isScrapingCategories}
-                    />
+          <>
+            {/* Service Tabs */}
+            <div className="mb-6 border-b border-gray-200">
+              <ul className="flex flex-wrap -mb-px text-sm font-medium text-center">
+                {(["zepto", "blinkit", "instamart"] as Service[]).map((service) => (
+                  <li className="mr-2" key={service}>
                     <button
-                      onClick={() => {
-                        if (categorySearchTerm.trim()) {
-                          handleScrapeCategories(0, categorySearchTerm)
-                        }
-                      }}
-                      disabled={isScrapingCategories || !isConnected || !categorySearchTerm.trim()}
-                      className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                      className={`inline-block p-4 rounded-t-lg ${activeService === service
+                        ? `border-b-2 border-${SERVICE_INFO[service].color}-500 text-${SERVICE_INFO[service].color}-600 font-semibold`
+                        : 'hover:text-gray-600 hover:border-gray-300'
+                        }`}
+                      onClick={() => setActiveService(service)}
                     >
-                      {isScrapingCategories ? "Scraping..." : "🔍 Search & Scrape"}
+                      <div className="flex items-center gap-2">
+                        <img src={SERVICE_INFO[service].logo} alt={`${service} logo`} className="h-5 w-auto" />
+                        {SERVICE_INFO[service].name}
+                      </div>
                     </button>
-                  </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
 
-                  {/* OR divider */}
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 border-t border-purple-300"></div>
-                    <span className="text-sm text-purple-600 font-medium">OR</span>
-                    <div className="flex-1 border-t border-purple-300"></div>
-                  </div>
-
-                  {/* Scrape all categories */}
-                  <button
-                    onClick={() => handleScrapeCategories(334, "")}
-                    disabled={isScrapingCategories || !isConnected}
-                    className="w-full px-4 py-2 bg-purple-700 text-white rounded-md hover:bg-purple-800 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold"
-                  >
-                    {isScrapingCategories ? "Scraping..." : "📦 Scrape ALL 334 Categories"}
-                  </button>
-                </div>
-
-                {isScrapingCategories && categoryProgress.total > 0 && (
-                  <div className="mt-4">
-                    <div className="flex justify-between text-sm text-purple-700 mb-1">
-                      <span>Progress: {categoryProgress.current} / {categoryProgress.total}</span>
-                      <span>{Math.round((categoryProgress.current / categoryProgress.total) * 100)}%</span>
-                    </div>
-                    <div className="w-full bg-purple-200 rounded-full h-2.5">
-                      <div
-                        className="bg-purple-600 h-2.5 rounded-full transition-all duration-300"
-                        style={{ width: `${(categoryProgress.current / categoryProgress.total) * 100}%` }}
-                      ></div>
-                    </div>
-                    <div className="mt-2">
-                      <p className="text-sm text-purple-700 font-medium">
-                        Currently scraping: <span className="text-purple-900">{categoryProgress.categoryName}</span>
-                      </p>
-                      {categoryProgress.mainCategory && (
-                        <p className="text-xs text-purple-600">
-                          Main category: <span className="font-semibold">{categoryProgress.mainCategory}</span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {categoryResults.length > 0 && (
-                  <div className="mt-4">
-                    <div className="flex justify-between items-center mb-2">
-                      <h4 className="font-semibold text-purple-900">
-                        Results: {categoryResults.reduce((sum, cat) => sum + cat.productCount, 0)} products from {categoryResults.length} categories
-                      </h4>
-                      <button
-                        onClick={() => {
-                          // Create workbook
-                          const wb = XLSX.utils.book_new();
-
-                          // Create a flattened dataset for Excel
-                          const excelData: any[] = [];
-
-                          categoryResults.forEach(result => {
-                            if (result.products && result.products.length > 0) {
-                              result.products.forEach((product: any) => {
-                                excelData.push({
-                                  'Category': result.category,
-                                  'Main Category': result.mainCategory,
-                                  'Sub Category': result.subCategory,
-                                  'Brand': product.brand || 'Unknown',
-                                  'Product Name': product.name,
-                                  'Price': product.price,
-                                  'Quantity': product.quantity,
-                                  'Rating': product.rating || 'N/A',
-                                  'Image URL': product.imageUrl,
-                                  'Available': product.available ? 'Yes' : 'No'
-                                });
-                              });
-                            } else {
-                              // Add category even if no products
-                              excelData.push({
-                                'Category': result.category,
-                                'Main Category': result.mainCategory,
-                                'Sub Category': result.subCategory,
-                                'Brand': '',
-                                'Product Name': 'No products found',
-                                'Price': '',
-                                'Quantity': '',
-                                'Rating': '',
-                                'Image URL': '',
-                                'Available': ''
-                              });
-                            }
-                          });
-
-                          // Create worksheet
-                          const ws = XLSX.utils.json_to_sheet(excelData);
-
-                          // Set column widths
-                          ws['!cols'] = [
-                            { wch: 30 }, // Category
-                            { wch: 20 }, // Main Category
-                            { wch: 20 }, // Sub Category
-                            { wch: 25 }, // Brand
-                            { wch: 40 }, // Product Name
-                            { wch: 12 }, // Price
-                            { wch: 12 }, // Quantity
-                            { wch: 10 }, // Rating
-                            { wch: 50 }, // Image URL
-                            { wch: 10 }  // Available
-                          ];
-
-                          // Add worksheet to workbook
-                          XLSX.utils.book_append_sheet(wb, ws, "Zepto Products");
-
-                          // Generate and download
-                          const fileName = `zepto-categories-${new Date().toISOString().split('T')[0]}.xlsx`;
-                          XLSX.writeFile(wb, fileName);
-
-                          toast.success('Excel file downloaded!', { icon: '📥' });
-                        }}
-                        className="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors"
-                      >
-                        📥 Download Excel
-                      </button>
-                    </div>
-                    <div className="max-h-96 overflow-y-auto bg-white p-3 rounded border border-purple-200">
-                      {categoryResults.map((result, idx) => (
-                        <details key={idx} className="mb-3 pb-3 border-b border-purple-100 last:border-0">
-                          <summary className="cursor-pointer font-medium text-purple-800 hover:text-purple-600 py-2">
-                            {result.category} ({result.productCount} products) ▼
-                          </summary>
-                          {result.products && result.products.length > 0 && (
-                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {result.products.slice(0, 12).map((product: any, pIdx: number) => (
-                                <div key={pIdx} className="border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow bg-white">
-                                  {product.imageUrl && (
-                                    <img
-                                      src={product.imageUrl}
-                                      alt={product.name}
-                                      className="w-full h-32 object-contain mb-2 rounded"
-                                      loading="lazy"
-                                    />
-                                  )}
-                                  <h5 className="text-sm font-semibold text-gray-800 line-clamp-2 mb-1">{product.name}</h5>
-                                  <p className="text-purple-600 font-bold text-sm">{product.price}</p>
-                                  <p className="text-xs text-gray-500">{product.quantity}</p>
-                                  {product.rating && (
-                                    <p className="text-xs text-yellow-600 mt-1">⭐ {product.rating}</p>
-                                  )}
-                                </div>
-                              ))}
-                              {result.products.length > 12 && (
-                                <div className="col-span-full text-center text-sm text-gray-500 italic">
-                                  + {result.products.length - 12} more products (download JSON for full list)
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </details>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <ProductList
-              products={services[activeService].products}
-              serviceName={activeService}
-              isLoading={services[activeService].isLoading}
-            />
-          </div>
+            {/* Active Service Category Scraping Section */}
+            {renderCategoryScrapingSection(activeService)}
+          </>
         )}
       </main>
     </div>
