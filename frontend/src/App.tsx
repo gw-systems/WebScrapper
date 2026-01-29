@@ -59,9 +59,13 @@ export default function Home() {
 
   // Category scraping state
   const [isScrapingCategories, setIsScrapingCategories] = useState(false)
-  const [categoryProgress, setCategoryProgress] = useState({ current: 0, total: 0, categoryName: "" })
+  const [categoryProgress, setCategoryProgress] = useState({ current: 0, total: 0, categoryName: "", mainCategory: "" })
   const [categoryResults, setCategoryResults] = useState<any[]>([])
   const [categorySearchTerm, setCategorySearchTerm] = useState("")
+  const [excludedCategories, setExcludedCategories] = useState<string[]>(["masala", "breakfast", "atta"])
+  const [completedMainCategories, setCompletedMainCategories] = useState<string[]>([])
+  const [totalMainCategories, setTotalMainCategories] = useState(0)
+  const [excelFilePath, setExcelFilePath] = useState<string | null>(null)
 
   const [services, setServices] = useState<Record<Service, ServiceState>>({
     blinkit: {
@@ -350,7 +354,8 @@ export default function Home() {
                 setCategoryProgress({
                   current: data.current || 0,
                   total: data.total || 0,
-                  categoryName: data.categoryName || ""
+                  categoryName: data.categoryName || "",
+                  mainCategory: data.mainCategory || ""
                 })
                 break
 
@@ -360,6 +365,22 @@ export default function Home() {
                   category: data.category,
                   productCount: data.productCount || 0
                 }])
+                break
+
+              case "mainCategoryCompleted":
+                // Main category Excel sheet added
+                setCompletedMainCategories(prev => [...prev, data.mainCategory])
+                setTotalMainCategories(data.totalMainCategories || 0)
+                setExcelFilePath(data.excelPath || null)
+
+                toast.success(`✅ ${data.mainCategory} completed! Sheet added to Excel (${data.productCount} products)`, {
+                  icon: "📊",
+                  duration: 4000,
+                  style: {
+                    background: '#10b981',
+                    color: 'white',
+                  }
+                })
                 break
 
               case "categoryScrapeResults":
@@ -467,21 +488,26 @@ export default function Home() {
 
     try {
       setIsScrapingCategories(true)
-      setCategoryProgress({ current: 0, total: 0, categoryName: "" })
+      setCategoryProgress({ current: 0, total: 0, categoryName: "", mainCategory: "" })
       setCategoryResults([])
+      setCompletedMainCategories([])
+      setTotalMainCategories(0)
+      setExcelFilePath(null)
       setLoadingMessage(`Starting category scraping...`)
 
       ws.current.send(
         JSON.stringify({
           action: "scrapeCategories",
           maxCategories,
-          categoryFilter: categoryFilter.trim()
+          categoryFilter: categoryFilter.trim(),
+          excludedCategories: excludedCategories
         }),
       )
 
+      const excludedMsg = excludedCategories.length > 0 ? ` (excluding: ${excludedCategories.join(", ")})` : "";
       const message = categoryFilter
-        ? `Searching for "${categoryFilter}" categories...`
-        : `Scraping all ${maxCategories} categories...`
+        ? `Searching for "${categoryFilter}" categories${excludedMsg}...`
+        : `Scraping all ${maxCategories} categories${excludedMsg}...`
       toast.success(message, {
         icon: "🔍",
         duration: 3000
@@ -595,6 +621,54 @@ export default function Home() {
               <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
                 <h3 className="text-lg font-semibold text-purple-900 mb-3">🛒 Zepto Category Scraping</h3>
 
+                {/* Excluded Categories Info */}
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <p className="text-sm text-yellow-800">
+                    <strong>📌 Excluded Categories:</strong> {excludedCategories.join(", ")}
+                  </p>
+                  <p className="text-xs text-yellow-600 mt-1">
+                    These categories will be filtered out during scraping.
+                  </p>
+                </div>
+
+                {/* Main Category Progress */}
+                {totalMainCategories > 0 && (
+                  <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-semibold text-green-800">
+                        📊 Main Categories Progress: {completedMainCategories.length} / {totalMainCategories}
+                      </p>
+                      {excelFilePath && (
+                        <a
+                          href={`/${excelFilePath.split('/').pop()}`}
+                          download
+                          className="text-xs px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                        >
+                          📥 Download Excel
+                        </a>
+                      )}
+                    </div>
+                    <div className="w-full bg-green-200 rounded-full h-2.5">
+                      <div
+                        className="bg-green-600 h-2.5 rounded-full transition-all duration-300"
+                        style={{ width: `${(completedMainCategories.length / totalMainCategories) * 100}%` }}
+                      ></div>
+                    </div>
+                    {completedMainCategories.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-xs text-green-700 font-medium">Completed:</p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {completedMainCategories.map((cat, idx) => (
+                            <span key={idx} className="text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded">
+                              ✓ {cat}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Category Search or Scrape All */}
                 <div className="space-y-3">
                   {/* Search specific category */}
@@ -648,7 +722,16 @@ export default function Home() {
                         style={{ width: `${(categoryProgress.current / categoryProgress.total) * 100}%` }}
                       ></div>
                     </div>
-                    <p className="text-sm text-purple-600 mt-2">Currently scraping: {categoryProgress.categoryName}</p>
+                    <div className="mt-2">
+                      <p className="text-sm text-purple-700 font-medium">
+                        Currently scraping: <span className="text-purple-900">{categoryProgress.categoryName}</span>
+                      </p>
+                      {categoryProgress.mainCategory && (
+                        <p className="text-xs text-purple-600">
+                          Main category: <span className="font-semibold">{categoryProgress.mainCategory}</span>
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -673,6 +756,7 @@ export default function Home() {
                                   'Category': result.category,
                                   'Main Category': result.mainCategory,
                                   'Sub Category': result.subCategory,
+                                  'Brand': product.brand || 'Unknown',
                                   'Product Name': product.name,
                                   'Price': product.price,
                                   'Quantity': product.quantity,
@@ -687,6 +771,7 @@ export default function Home() {
                                 'Category': result.category,
                                 'Main Category': result.mainCategory,
                                 'Sub Category': result.subCategory,
+                                'Brand': '',
                                 'Product Name': 'No products found',
                                 'Price': '',
                                 'Quantity': '',
@@ -705,6 +790,7 @@ export default function Home() {
                             { wch: 30 }, // Category
                             { wch: 20 }, // Main Category
                             { wch: 20 }, // Sub Category
+                            { wch: 25 }, // Brand
                             { wch: 40 }, // Product Name
                             { wch: 12 }, // Price
                             { wch: 12 }, // Quantity

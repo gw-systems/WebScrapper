@@ -3,9 +3,10 @@ const { XMLParser } = require('fast-xml-parser');
 
 /**
  * Fetches all Zepto categories from their sitemap
+ * @param {Array<string>} excludedCategories - Array of category terms to exclude (case-insensitive)
  * @returns {Promise<Array>} Array of category objects with name and URL
  */
-async function getAllCategories() {
+async function getAllCategories(excludedCategories = []) {
     try {
         console.log('Fetching Zepto categories from sitemap...');
 
@@ -17,6 +18,9 @@ async function getAllCategories() {
         const result = parser.parse(response.data);
 
         const categories = [];
+
+        // Normalize excluded categories to lowercase for comparison
+        const excludedLower = excludedCategories.map(cat => cat.toLowerCase().trim());
 
         // Extract URLs from the sitemap
         if (result.urlset && result.urlset.url) {
@@ -32,24 +36,93 @@ async function getAllCategories() {
                 if (match) {
                     const mainCategory = match[1].replace(/-/g, ' ');
                     const subCategory = match[2].replace(/-/g, ' ');
+                    const fullName = `${mainCategory} > ${subCategory}`;
 
-                    categories.push({
-                        name: `${mainCategory} > ${subCategory}`,
-                        mainCategory,
-                        subCategory,
-                        url
-                    });
+                    // Check if category should be excluded
+                    const shouldExclude = excludedLower.some(excluded =>
+                        mainCategory.toLowerCase().includes(excluded) ||
+                        subCategory.toLowerCase().includes(excluded) ||
+                        fullName.toLowerCase().includes(excluded)
+                    );
+
+                    if (!shouldExclude) {
+                        categories.push({
+                            name: fullName,
+                            mainCategory,
+                            subCategory,
+                            url
+                        });
+                    } else {
+                        console.log(`Excluding category: ${fullName}`);
+                    }
                 }
             }
         }
 
-        console.log(`Found ${categories.length} categories`);
+        console.log(`Found ${categories.length} categories (after exclusions)`);
         return categories;
 
     } catch (error) {
         console.error('Error fetching Zepto categories:', error.message);
         return [];
     }
+}
+
+/**
+ * Extracts brand name from product name using pattern matching
+ * @param {string} productName - Full product name
+ * @returns {string} Extracted brand name
+ */
+function extractBrand(productName) {
+    const name = productName.trim();
+    const words = name.split(/\s+/);
+
+    if (words.length === 0) return 'Unknown';
+
+    // Rule 1: "The [Word] [Word]" pattern → Take 3 words
+    // Example: "The Health Factory Mini Cakes" → "The Health Factory"
+    if (words[0]?.toLowerCase() === 'the' && words.length >= 3) {
+        return `${words[0]} ${words[1]} ${words[2]}`;
+    }
+
+    // Rule 2: If 2nd word is "Of" or "On", take 3 words
+    // Example: "Pride Of Cows Milk" → "Pride Of Cows"
+    if (words.length >= 3 && ['of', 'on'].includes(words[1]?.toLowerCase())) {
+        return `${words[0]} ${words[1]} ${words[2]}`;
+    }
+
+    // Rule 3: Check if 2nd word is likely part of brand name
+    // Common patterns in brand names
+    if (words.length >= 2) {
+        const secondWord = words[1]?.toLowerCase();
+
+        // Brand indicators - common words in multi-word brand names
+        const brandIndicators = [
+            'dairy',     // Mother Dairy
+            'mist',      // Milky Mist
+            'farms',     // Humpy Farms, Desi Farms
+            'farm',      // Farm Made
+            'fresh',     // iD Fresh
+            'delight',   // Country Delight
+            'nutrients', // Bio Nutrients
+            'oven',      // English Oven
+            'chef',      // Protein Chef
+            'poultry',   // Yojana Poultry
+            'egg',       // The Good Egg
+            'life',      // Aaha Life
+            'factory',   // Cake Factory
+            'tale',      // Cake Tale
+            'zone'       // CakeZone (if written as Cake Zone)
+        ];
+
+        if (brandIndicators.includes(secondWord)) {
+            return `${words[0]} ${words[1]}`;
+        }
+    }
+
+    // Rule 4: Default to first word
+    // Works for: Amul, Britannia, Nestle, CakeZone, etc.
+    return words[0];
 }
 
 /**
@@ -107,6 +180,41 @@ async function scrapeCategoryProducts(page, categoryUrl) {
         const products = await page.evaluate(() => {
             const results = [];
 
+            // Brand extraction helper (inlined for page.evaluate scope)
+            function extractBrand(productName) {
+                const name = productName.trim();
+                const words = name.split(/\s+/);
+
+                if (words.length === 0) return 'Unknown';
+
+                // "The [Word] [Word]" pattern
+                if (words[0]?.toLowerCase() === 'the' && words.length >= 3) {
+                    return `${words[0]} ${words[1]} ${words[2]}`;
+                }
+
+                // "Of" or "On" in 2nd position
+                if (words.length >= 3 && ['of', 'on'].includes(words[1]?.toLowerCase())) {
+                    return `${words[0]} ${words[1]} ${words[2]}`;
+                }
+
+                // Check if 2nd word is brand indicator
+                if (words.length >= 2) {
+                    const secondWord = words[1]?.toLowerCase();
+                    const brandIndicators = [
+                        'dairy', 'mist', 'farms', 'farm', 'fresh', 'delight',
+                        'nutrients', 'oven', 'chef', 'poultry', 'egg', 'life',
+                        'factory', 'tale', 'zone'
+                    ];
+
+                    if (brandIndicators.includes(secondWord)) {
+                        return `${words[0]} ${words[1]}`;
+                    }
+                }
+
+                // Default: first word
+                return words[0];
+            }
+
             // Find all product containers - look for elements with ProductName slot
             const productElements = document.querySelectorAll('[data-slot-id="ProductName"]');
 
@@ -152,9 +260,13 @@ async function scrapeCategoryProducts(page, categoryUrl) {
                     const ratingEl = container.querySelector('[data-slot-id="RatingInformation"]');
                     const rating = ratingEl ? ratingEl.innerText : null;
 
+                    // Extract brand from product name
+                    const brand = extractBrand(name);
+
                     results.push({
                         id: `zepto_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`,
                         name: name.trim(),
+                        brand: brand.trim(),
                         price: price.trim(),
                         quantity: quantity.trim(),
                         imageUrl,

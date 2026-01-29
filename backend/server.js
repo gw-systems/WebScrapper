@@ -21,6 +21,7 @@ SVCS.forEach((svc) => {
 
 // Import Zepto category scraper
 const { getAllCategories, scrapeCategoryProducts } = require('./zepto/categoryScraper.js');
+const CategoryExcelWriter = require('./excelWriter.js');
 
 const app = express();
 const srv = http.createServer(app);
@@ -879,9 +880,13 @@ async function handleScrapeCategories(socket, cid, data) {
   }
 
   const page = pgs.zepto;
-  const { maxCategories = 10, categoryFilter } = data; // Allow limiting for testing
+  const { maxCategories = 10, categoryFilter, excludedCategories = [] } = data;
 
   try {
+    // Initialize Excel writer
+    const excelPath = path.join(__dirname, '..', 'zepto-all-categories.xlsx');
+    const excelWriter = new CategoryExcelWriter(excelPath);
+
     // Step 1: Fetch all categories
     socket.send(
       JSON.stringify({
@@ -892,7 +897,7 @@ async function handleScrapeCategories(socket, cid, data) {
       })
     );
 
-    const allCategories = await getAllCategories();
+    const allCategories = await getAllCategories(excludedCategories);
 
     if (allCategories.length === 0) {
       socket.send(
@@ -936,9 +941,22 @@ async function handleScrapeCategories(socket, cid, data) {
       })
     );
 
-    // Step 2: Scrape each category
+    // Step 2: Group categories by main category
+    const mainCategoryMap = new Map();
+    categoriesToScrape.forEach(cat => {
+      if (!mainCategoryMap.has(cat.mainCategory)) {
+        mainCategoryMap.set(cat.mainCategory, []);
+      }
+      mainCategoryMap.get(cat.mainCategory).push(cat);
+    });
+
+    console.log(`Grouped into ${mainCategoryMap.size} main categories`);
+
+    // Step 3: Scrape each category and group by main category
     const categoryResults = [];
+    const mainCategoryProducts = new Map();
     let scrapedCount = 0;
+    let completedMainCategories = [];
 
     for (const category of categoriesToScrape) {
       try {
@@ -949,6 +967,7 @@ async function handleScrapeCategories(socket, cid, data) {
             current: scrapedCount + 1,
             total: categoriesToScrape.length,
             categoryName: category.name,
+            mainCategory: category.mainCategory,
             message: `Scraping ${category.name}... (${scrapedCount + 1}/${categoriesToScrape.length})`,
           })
         );
@@ -956,14 +975,28 @@ async function handleScrapeCategories(socket, cid, data) {
         // Scrape the category
         const products = await scrapeCategoryProducts(page, category.url);
 
+        // Add category and mainCategory info to each product
+        const enrichedProducts = products.map(p => ({
+          ...p,
+          category: category.name,
+          mainCategory: category.mainCategory,
+          subCategory: category.subCategory
+        }));
+
         categoryResults.push({
           category: category.name,
           mainCategory: category.mainCategory,
           subCategory: category.subCategory,
           url: category.url,
           productCount: products.length,
-          products: products,
+          products: enrichedProducts,
         });
+
+        // Accumulate products for this main category
+        if (!mainCategoryProducts.has(category.mainCategory)) {
+          mainCategoryProducts.set(category.mainCategory, []);
+        }
+        mainCategoryProducts.get(category.mainCategory).push(...enrichedProducts);
 
         scrapedCount++;
 
@@ -977,6 +1010,38 @@ async function handleScrapeCategories(socket, cid, data) {
           })
         );
 
+        // Check if we've completed all categories for this main category
+        const mainCatCategories = mainCategoryMap.get(category.mainCategory);
+        const scrapedInMainCat = categoryResults.filter(r => r.mainCategory === category.mainCategory).length;
+
+        if (scrapedInMainCat === mainCatCategories.length && !completedMainCategories.includes(category.mainCategory)) {
+          // This main category is complete, add sheet to Excel
+          const mainCatProducts = mainCategoryProducts.get(category.mainCategory);
+
+          try {
+            await excelWriter.addMainCategorySheet(category.mainCategory, mainCatProducts);
+            await excelWriter.save();
+
+            completedMainCategories.push(category.mainCategory);
+
+            // Notify frontend that a main category sheet was added
+            socket.send(
+              JSON.stringify({
+                action: "mainCategoryCompleted",
+                mainCategory: category.mainCategory,
+                productCount: mainCatProducts.length,
+                completedMainCategories: completedMainCategories.length,
+                totalMainCategories: mainCategoryMap.size,
+                excelPath: excelPath
+              })
+            );
+
+            console.log(`✓ Added Excel sheet for: ${category.mainCategory} (${mainCatProducts.length} products)`);
+          } catch (excelError) {
+            console.error(`Error adding Excel sheet for ${category.mainCategory}:`, excelError);
+          }
+        }
+
         // Add delay between categories to avoid rate limiting
         await new Promise(r => setTimeout(r, 2000));
 
@@ -984,6 +1049,7 @@ async function handleScrapeCategories(socket, cid, data) {
         console.error(`Error scraping category ${category.name}:`, error);
         categoryResults.push({
           category: category.name,
+          mainCategory: category.mainCategory,
           error: error.message,
           productCount: 0,
           products: [],
