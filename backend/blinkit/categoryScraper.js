@@ -25,6 +25,15 @@ function extractProductInformation(jsonResponse) {
         // Skip non-product snippets like headers, pill containers, etc.
         if (snippet.widget_type === "pill_container_snippet" ||
             snippet.widget_type === "image_text_vr_type_header") {
+            console.log(`[DEBUG] Skipping widget type: ${snippet.widget_type}`);
+            return;
+        }
+
+        console.log(`[DEBUG] Processing widget type: ${snippet.widget_type}`);
+
+        // Log other skipped types for debugging
+        if (!snippet.data || !snippet.data.name) {
+            // console.log(`[DEBUG] Skipping snippet without name. Widget: ${snippet.widget_type}`);
             return;
         }
 
@@ -198,11 +207,17 @@ async function scrapeCategoryProducts(page, categoryUrl) {
                         const json = await response.json().catch(() => null);
                         if (json && json.response && Array.isArray(json.response.snippets)) {
                             // Verify it has products
+                            const snipCount = json.response.snippets.length;
+                            console.log(`[DEBUG] Intercepted JSON from ${url} | Snippets: ${snipCount}`);
+
                             const hasProducts = json.response.snippets.some(s =>
                                 s.data && s.data.name && s.widget_type !== "pill_container_snippet"
                             );
                             if (hasProducts) {
+                                console.log(`[DEBUG] Found valid product JSON at ${url}`);
                                 resolve(json);
+                            } else {
+                                console.log(`[DEBUG] JSON at ${url} had no valid products`);
                             }
                         }
                     } catch (e) { }
@@ -236,6 +251,42 @@ async function scrapeCategoryProducts(page, categoryUrl) {
 
         const products = extractProductInformation(json);
         console.log(`Extracted ${products.length} products from category JSON`);
+
+        // Dynamically extract the real category name from the DOM as a fallback/improvement
+        try {
+            const pageTitle = await page.evaluate(() => {
+                // Try to find reasonable headers
+                const candidates = Array.from(document.querySelectorAll('h1, h2, [class*="Header"], [data-testid="category-header"], .CategoryHeader'));
+
+                for (const el of candidates) {
+                    let text = el.textContent ? el.textContent.trim() : '';
+                    // Filter out obvious site headers
+                    if (!text) continue;
+                    if (text.length > 60) continue;
+
+                    // Strict filtering for site nav text
+                    if (/Delivery in/i.test(text)) continue;
+                    if (/Search "/i.test(text)) continue;
+                    if (/Login/i.test(text)) continue;
+                    if (/My Cart/i.test(text)) continue;
+
+                    // Clean up title (remove "Buy" ... "Online")
+                    text = text.replace(/^Buy\s+/i, '').replace(/\s+Online$/i, '').trim();
+
+                    return text; // Return first valid looking header
+                }
+                return null;
+            });
+
+            if (pageTitle) {
+                console.log(`Extracted real category name from page: "${pageTitle}"`);
+                // Attach this to the returned array or objects so the caller can use it
+                products.realCategoryName = pageTitle;
+            }
+        } catch (domErr) {
+            console.log('Could not extract category name from DOM', domErr.message);
+        }
+
         return products;
 
     } catch (error) {

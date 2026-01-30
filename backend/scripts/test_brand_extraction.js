@@ -11,7 +11,8 @@ const testCases = [
     "Daily Good Almonds",
     "Borges Olive Oil",
     "Pee Safe Toilet Seat Sanitizer Spray",
-    "A TATA Product Sampann Toor Dal"
+    "A TATA Product Sampann Toor Dal",
+    "Chandan Calcutta Mitha Pan Mouth Freshener"
 ];
 
 console.log("--- Testing Brand Extraction ---");

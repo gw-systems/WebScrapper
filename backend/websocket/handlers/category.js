@@ -96,10 +96,19 @@ async function handleScrapeCategories(socket, cid, data) {
             const products = await scrapeCategoryProducts(page, category.url);
             console.log(`[DEBUG] scrapeCategoryProducts returned ${products.length} products`);
 
+            // If `products.realCategoryName` is set (Blinkit dynamic fix)
+            // update the category info if it looks like a placeholder
+            if (products.realCategoryName) {
+                if (category.mainCategory.startsWith('Cat-') && !category.mainCategory.includes(' > ')) {
+                    category.mainCategory = products.realCategoryName;
+                    category.name = `${products.realCategoryName} > ${category.subCategory}`; // Best effort update
+                }
+            }
+
             // Add category info to products
             const productsWithCat = products.map(p => ({
                 ...p,
-                category: category.mainCategory,
+                category: products.realCategoryName || category.mainCategory, // Prefer dynamic name
                 subCategory: category.subCategory
             }));
 
