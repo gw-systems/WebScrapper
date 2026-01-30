@@ -60,11 +60,11 @@ export const SearchInput: React.FC = () => {
             </div>
 
             <button
-                onClick={() => handleScrapeCategories(334, "")}
+                onClick={() => handleScrapeCategories(0, "")}
                 disabled={state.isScrapingCategories || !isConnected}
                 className={`w-full px-4 py-2 text-white rounded-md transition-colors font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed ${styles.button}`}
             >
-                {state.isScrapingCategories ? "Scraping..." : "📦 Scrape ALL 334 Categories"}
+                {state.isScrapingCategories ? "Scraping..." : "📦 Scrape ALL Categories"}
             </button>
         </div>
     );

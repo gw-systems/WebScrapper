@@ -11,8 +11,10 @@ interface ServiceState {
     completedMainCategories: string[];
     totalMainCategories: number;
     excelFilePath: string | null;
-    excelFileName: string | null; // Add fileName
+    excelFileName: string | null;
     categorySearchTerm: string;
+    products: any[]; // Search products
+    isLoading: boolean; // Loading state for searches
 }
 
 interface ScraperContextType {
@@ -38,8 +40,10 @@ const initialServiceState: ServiceState = {
     completedMainCategories: [],
     totalMainCategories: 0,
     excelFilePath: null,
-    excelFileName: null, // Initialize fileName
-    categorySearchTerm: ""
+    excelFileName: null,
+    categorySearchTerm: "",
+    products: [],
+    isLoading: false
 };
 
 export const ScraperProvider = ({ children }: { children: ReactNode }) => {
@@ -67,7 +71,9 @@ export const ScraperProvider = ({ children }: { children: ReactNode }) => {
             if (locationStatus.isSet && data.message?.includes("Setting location")) {
                 return;
             }
-            if (data.message) setLoadingMessage(data.message);
+            if (data.message && data.step !== 'scrapeCategories') {
+                setLoadingMessage(data.message);
+            }
 
             if (data.step === "initialize" && data.status === "completed") {
                 toast.success("Browsers initialized!");
@@ -161,6 +167,17 @@ export const ScraperProvider = ({ children }: { children: ReactNode }) => {
                     updateServiceState(service, { isScrapingCategories: false });
                     toast.error(data.message || "Scraping failed");
                 }
+            }
+        }
+
+        // Handle search results
+        if (data.action === "serviceSearchUpdate") {
+            const service = data.service as Service;
+            if (service) {
+                updateServiceState(service, {
+                    products: data.products || [],
+                    isLoading: data.status === 'loading'
+                });
             }
         }
 

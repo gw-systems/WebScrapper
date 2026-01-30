@@ -1,7 +1,15 @@
 const BrowserPool = require('../../services/BrowserPool');
 const logger = require('../../utils/logger');
-const { getAllCategories, scrapeCategoryProducts } = require('../../zepto/categoryScraper');
-const CategoryExcelWriter = require('../../excelWriter'); // We need to check where this lives
+const zeptoScraper = require('../../zepto/categoryScraper');
+let blinkitScraper;
+try { blinkitScraper = require('../../blinkit/categoryScraper'); } catch (e) { }
+
+const scrapers = {
+    zepto: zeptoScraper,
+    blinkit: blinkitScraper
+};
+
+const CategoryExcelWriter = require('../../excelWriter');
 const fs = require('fs');
 const path = require('path');
 
@@ -10,11 +18,15 @@ async function handleScrapeCategories(socket, cid, data) {
     const { service, excludedCategories } = data;
     console.log(`[DEBUG] Service: ${service}, Excluded: ${JSON.stringify(excludedCategories)}`);
 
-    if (service !== 'zepto') {
-        console.log(`[DEBUG] Invalid service: ${service}`);
-        socket.send(JSON.stringify({ status: 'error', message: 'Only Zepto supported for category scraping' }));
+    const scraper = scrapers[service];
+    if (!scraper) {
+        console.log(`[DEBUG] Invalid or unsupported service: ${service}`);
+        socket.send(JSON.stringify({ status: 'error', message: `Category scraping not supported for ${service}` }));
         return;
     }
+
+    const { getAllCategories, scrapeCategoryProducts } = scraper;
+
 
     logger.info('Starting category scraping', { cid, service });
 
@@ -105,7 +117,7 @@ async function handleScrapeCategories(socket, cid, data) {
         // Generate filename: zepto_search_(term)_(date)_(time).xlsx
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const searchTerm = data.categoryFilter ? data.categoryFilter.trim().replace(/\s+/g, '_') : 'categories';
-        const fileName = `zepto_search_${searchTerm}_${timestamp}.xlsx`;
+        const fileName = `${service}_category_${searchTerm}_${timestamp}.xlsx`;
 
         socket.send(JSON.stringify({
             action: 'statusUpdate', step: 'scrapeCategories',

@@ -12,14 +12,8 @@ export const CategoryScraper: React.FC = () => {
     const state = servicesState[activeService];
     const styles = getServiceStyles(serviceInfo.color);
 
-    if (activeService !== 'zepto') {
-        return (
-            <div className={`mb-6 p-4 rounded-lg bg-gray-50 border border-gray-200 text-center text-gray-500`}>
-                <h3 className="text-lg font-semibold mb-2">🛒 Category Scraping</h3>
-                <p>Category scraping is currently available only for <strong>Zepto</strong>.</p>
-                <p className="text-sm mt-1">Please switch to the Zepto tab to use this feature.</p>
-            </div>
-        );
+    if (activeService !== 'zepto' && activeService !== 'blinkit') {
+        return null; // Don't show anything for non-supported services
     }
 
     return (

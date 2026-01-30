@@ -59,7 +59,6 @@ class CategoryExcelWriter {
         // Define columns
         worksheet.columns = [
             { header: 'Category', key: 'category', width: 30 },
-            { header: 'Main Category', key: 'mainCategory', width: 25 },
             { header: 'Sub Category', key: 'subCategory', width: 25 },
             { header: 'Brand', key: 'brand', width: 25 },
             { header: 'Product Name', key: 'name', width: 50 },
@@ -84,7 +83,6 @@ class CategoryExcelWriter {
             products.forEach(product => {
                 worksheet.addRow({
                     category: product.category || '',
-                    mainCategory: product.mainCategory || '',
                     subCategory: product.subCategory || '',
                     brand: product.brand || 'Unknown',
                     name: product.name || '',
@@ -99,7 +97,6 @@ class CategoryExcelWriter {
             // Add a row indicating no products
             worksheet.addRow({
                 category: mainCategoryName,
-                mainCategory: mainCategoryName,
                 subCategory: '',
                 brand: '',
                 name: 'No products found',
@@ -139,7 +136,6 @@ class CategoryExcelWriter {
         // Define columns
         worksheet.columns = [
             { header: 'Category', key: 'category', width: 30 },
-            { header: 'Main Category', key: 'mainCategory', width: 25 },
             { header: 'Sub Category', key: 'subCategory', width: 25 },
             { header: 'Brand', key: 'brand', width: 25 },
             { header: 'Product Name', key: 'name', width: 50 },
@@ -164,7 +160,6 @@ class CategoryExcelWriter {
             products.forEach(product => {
                 worksheet.addRow({
                     category: product.category || '',
-                    mainCategory: product.mainCategory || '',
                     subCategory: product.subCategory || '',
                     brand: product.brand || 'Unknown',
                     name: product.name || '',
