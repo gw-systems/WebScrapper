@@ -1,3 +1,5 @@
+const brandManager = require('../utils/brandManager');
+
 async function navigateToSearch(page, term) {
   console.log(`Navigating to Zepto search with term: ${term}`);
 
@@ -128,8 +130,10 @@ function extractProductInformation(prodJson) {
       const prodSnips = prodJson.response.snippets.filter(s =>
         s.data &&
         s.data.identity &&
-        s.data.identity.id !== "product_container" &&
-        s.data.name
+        s.data.identity.id &&
+        s.data.identity.id.startsWith("product") &&
+        s.data.name &&
+        (s.data.final_price || s.data.price) // Must have a price to be a product
       );
 
       for (const snip of prodSnips) {
@@ -150,6 +154,7 @@ function extractProductInformation(prodJson) {
                 `${Math.round(((parseFloat(data.price) - parseFloat(data.final_price)) / parseFloat(data.price)) * 100)}% OFF` : null
             ),
             imageUrl: data.image_url || data.img_url || "",
+            brand: brandManager.extractBrand(data.name || ""),
             available: !data.out_of_stock,
             source: "zepto"
           };
@@ -181,9 +186,32 @@ async function extractProductsFromHTML(page) {
   try {
     console.log("Extracting Zepto products from HTML structure...");
 
-    const products = await page.evaluate(() => {
+    const allBrands = brandManager.getAllBrands();
+    const products = await page.evaluate((brands) => {
       const cards = Array.from(document.querySelectorAll('[data-testid="product-card"]'));
       console.log(`Found ${cards.length} product cards on the page`);
+
+      function extractBrandFromList(productName, brandList) {
+        const name = productName.toLowerCase().trim();
+
+        // Alias checks
+        if (name.startsWith('a tata product')) return 'Tata';
+
+        // Sort brands by length descending to match longest first
+        const sortedBrands = brandList.sort((a, b) => b.length - a.length);
+
+        for (const brand of sortedBrands) {
+          const normalizedBrand = brand.toLowerCase();
+          if (name.startsWith(normalizedBrand)) {
+            // Check for word boundary
+            const nextChar = name[normalizedBrand.length];
+            if (!nextChar || /\s|[^\w]/.test(nextChar)) {
+              return brand;
+            }
+          }
+        }
+        return "Brand Not Found";
+      }
 
       return cards.map(card => {
         try {
@@ -196,7 +224,8 @@ async function extractProductsFromHTML(page) {
           const name = nameEl ? nameEl.textContent.trim() : "Unknown Product";
 
           const priceEl = card.querySelector('.text-\\[20px\\].font-\\[700\\]');
-          const price = priceEl ? priceEl.textContent.trim() : "Price unavailable";
+          if (!priceEl) return null; // Skip if no price element (likely a category card)
+          const price = priceEl.textContent.trim();
 
           const origPriceEl = card.querySelector('.text-lg.font-\\[450\\].line-through');
           const origPrice = origPriceEl ? origPriceEl.textContent.trim() : null;
@@ -239,6 +268,7 @@ async function extractProductsFromHTML(page) {
             discount,
             rating,
             imageUrl: img,
+            brand: extractBrandFromList(name, brands),
             available,
             source: "zepto"
           };
@@ -247,7 +277,7 @@ async function extractProductsFromHTML(page) {
           return null;
         }
       }).filter(p => p !== null);
-    });
+    }, allBrands);
 
     console.log(`Extracted ${products.length} products from HTML structure`);
     return products;

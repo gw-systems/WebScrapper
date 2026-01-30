@@ -1,0 +1,11 @@
+﻿--- Testing Brand Extraction ---
+Loaded 1303 brands into Trie.
+Product: "Amul Butter 500g" => Brand: "Amul"
+Product: "Mother Dairy Full Cream Milk 1L" => Brand: "Mother Dairy"
+Product: "24 Mantra Organic Poha 500g" => Brand: "24 Mantra"
+Product: "Aashirvaad Atta 5kg" => Brand: "Aashirvaad"
+Product: "Unknown Brand Product 100g" => Brand: "Brand Not Found"
+Product: "Amulya Dairy Whitener" => Brand: "Brand Not Found"
+Product: "Dabur Honey 250g" => Brand: "Dabur"
+Product: "Daily Good Almonds" => Brand: "Daily Good"
+Product: "Borges Olive Oil" => Brand: "BORGES"

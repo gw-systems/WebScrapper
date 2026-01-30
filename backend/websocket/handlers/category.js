@@ -43,10 +43,15 @@ async function handleScrapeCategories(socket, cid, data) {
         if (data.categoryFilter) {
             const filterTerm = data.categoryFilter.toLowerCase();
             console.log(`[DEBUG] Filtering categories by: "${filterTerm}"`);
+
+            // Use word boundary to avoid matching 'oil' in 'toilet'
+            // Using only starting boundary to allow plurals like 'oils'
+            const filterRegex = new RegExp(`\\b${filterTerm}`, 'i');
+
             targetCategories = categories.filter(c =>
-                c.name.toLowerCase().includes(filterTerm) ||
-                c.mainCategory.toLowerCase().includes(filterTerm) ||
-                c.subCategory.toLowerCase().includes(filterTerm)
+                filterRegex.test(c.name) ||
+                filterRegex.test(c.mainCategory) ||
+                filterRegex.test(c.subCategory)
             );
             console.log(`[DEBUG] Filter reduced categories from ${categories.length} to ${targetCategories.length}`);
         }

@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { XMLParser } = require('fast-xml-parser');
+const brandManager = require('../utils/brandManager');
 
 /**
  * Fetches all Zepto categories from their sitemap
@@ -68,61 +69,9 @@ async function getAllCategories(excludedCategories = []) {
     }
 }
 
-/**
- * Extracts brand name from product name using pattern matching
- * @param {string} productName - Full product name
- * @returns {string} Extracted brand name
- */
 function extractBrand(productName) {
-    const name = productName.trim();
-    const words = name.split(/\s+/);
-
-    if (words.length === 0) return 'Unknown';
-
-    // Rule 1: "The [Word] [Word]" pattern → Take 3 words
-    // Example: "The Health Factory Mini Cakes" → "The Health Factory"
-    if (words[0]?.toLowerCase() === 'the' && words.length >= 3) {
-        return `${words[0]} ${words[1]} ${words[2]}`;
-    }
-
-    // Rule 2: If 2nd word is "Of" or "On", take 3 words
-    // Example: "Pride Of Cows Milk" → "Pride Of Cows"
-    if (words.length >= 3 && ['of', 'on'].includes(words[1]?.toLowerCase())) {
-        return `${words[0]} ${words[1]} ${words[2]}`;
-    }
-
-    // Rule 3: Check if 2nd word is likely part of brand name
-    // Common patterns in brand names
-    if (words.length >= 2) {
-        const secondWord = words[1]?.toLowerCase();
-
-        // Brand indicators - common words in multi-word brand names
-        const brandIndicators = [
-            'dairy',     // Mother Dairy
-            'mist',      // Milky Mist
-            'farms',     // Humpy Farms, Desi Farms
-            'farm',      // Farm Made
-            'fresh',     // iD Fresh
-            'delight',   // Country Delight
-            'nutrients', // Bio Nutrients
-            'oven',      // English Oven
-            'chef',      // Protein Chef
-            'poultry',   // Yojana Poultry
-            'egg',       // The Good Egg
-            'life',      // Aaha Life
-            'factory',   // Cake Factory
-            'tale',      // Cake Tale
-            'zone'       // CakeZone (if written as Cake Zone)
-        ];
-
-        if (brandIndicators.includes(secondWord)) {
-            return `${words[0]} ${words[1]}`;
-        }
-    }
-
-    // Rule 4: Default to first word
-    // Works for: Amul, Britannia, Nestle, CakeZone, etc.
-    return words[0];
+    // Use brandManager for extraction
+    return brandManager.extractBrand(productName);
 }
 
 /**
@@ -177,42 +126,33 @@ async function scrapeCategoryProducts(page, categoryUrl) {
         await new Promise(r => setTimeout(r, 1000));
 
         // Extract products using data-slot-id selectors
-        const products = await page.evaluate(() => {
+        const allBrands = brandManager.getAllBrands();
+        const products = await page.evaluate((brands) => {
             const results = [];
 
             // Brand extraction helper (inlined for page.evaluate scope)
-            function extractBrand(productName) {
-                const name = productName.trim();
-                const words = name.split(/\s+/);
+            function extractBrandFromList(productName, brandList) {
+                const name = productName.toLowerCase().trim();
 
-                if (words.length === 0) return 'Unknown';
+                // Alias checks
+                if (name.startsWith('a tata product')) return 'Tata';
 
-                // "The [Word] [Word]" pattern
-                if (words[0]?.toLowerCase() === 'the' && words.length >= 3) {
-                    return `${words[0]} ${words[1]} ${words[2]}`;
-                }
+                let lastMatchedBrand = null;
 
-                // "Of" or "On" in 2nd position
-                if (words.length >= 3 && ['of', 'on'].includes(words[1]?.toLowerCase())) {
-                    return `${words[0]} ${words[1]} ${words[2]}`;
-                }
+                // Sort brands by length descending to match longest first
+                const sortedBrands = brandList.sort((a, b) => b.length - a.length);
 
-                // Check if 2nd word is brand indicator
-                if (words.length >= 2) {
-                    const secondWord = words[1]?.toLowerCase();
-                    const brandIndicators = [
-                        'dairy', 'mist', 'farms', 'farm', 'fresh', 'delight',
-                        'nutrients', 'oven', 'chef', 'poultry', 'egg', 'life',
-                        'factory', 'tale', 'zone'
-                    ];
-
-                    if (brandIndicators.includes(secondWord)) {
-                        return `${words[0]} ${words[1]}`;
+                for (const brand of sortedBrands) {
+                    const normalizedBrand = brand.toLowerCase();
+                    if (name.startsWith(normalizedBrand)) {
+                        // Check for word boundary
+                        const nextChar = name[normalizedBrand.length];
+                        if (!nextChar || /\s|[^\w]/.test(nextChar)) {
+                            return brand;
+                        }
                     }
                 }
-
-                // Default: first word
-                return words[0];
+                return "Brand Not Found";
             }
 
             // Find all product containers - look for elements with ProductName slot
@@ -246,7 +186,9 @@ async function scrapeCategoryProducts(page, categoryUrl) {
 
                     // Find price (EdlpPrice slot) within this container
                     const priceEl = container.querySelector('[data-slot-id="EdlpPrice"]');
-                    const price = priceEl ? (priceEl.innerText || priceEl.textContent || 'Price unavailable') : 'Price unavailable';
+                    if (!priceEl) return; // Skip if no price (likely a category or promotional card)
+                    const price = priceEl.innerText || priceEl.textContent || 'Price unavailable';
+                    if (price === 'Price unavailable') return; // Double check
 
                     // Find pack size/quantity within this container
                     const packSizeEl = container.querySelector('[data-slot-id="PackSize"]');
@@ -261,7 +203,7 @@ async function scrapeCategoryProducts(page, categoryUrl) {
                     const rating = ratingEl ? ratingEl.innerText : null;
 
                     // Extract brand from product name
-                    const brand = extractBrand(name);
+                    const brand = extractBrandFromList(name, brands);
 
                     results.push({
                         id: `zepto_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`,
@@ -280,7 +222,7 @@ async function scrapeCategoryProducts(page, categoryUrl) {
             });
 
             return results;
-        });
+        }, allBrands);
 
         console.log(`Found ${products.length} products in category`);
         return products;
