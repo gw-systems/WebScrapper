@@ -1,3 +1,5 @@
+const brandManager = require('../utils/brandManager');
+
 async function navigateToSearch(page, searchTerm) {
   console.log(`Directly navigating to search URL with term: ${searchTerm}`);
 
@@ -165,7 +167,9 @@ function extractProductInformation(prodJson) {
         quantity: qty,
         deliveryTime: delTime,
         discount: disc,
+        discount: disc,
         imageUrl: imgUrl,
+        brand: brandManager.extractBrand(name),
         available: avail
       });
 

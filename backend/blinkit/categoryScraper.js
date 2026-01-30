@@ -2,6 +2,7 @@ const axios = require('axios');
 const { XMLParser } = require('fast-xml-parser');
 const path = require('path');
 const fs = require('fs');
+const brandManager = require('../utils/brandManager');
 
 /**
  * Extracts product information from Blinkit JSON response (snippets format)
@@ -54,7 +55,7 @@ function extractProductInformation(jsonResponse) {
             prods.push({
                 id: `blinkit_${id}`,
                 name: String(name).trim(),
-                brand: 'Blinkit', // Blinkit doesn't always have a separate brand field in snippets
+                brand: brandManager.extractBrand(String(name).trim()),
                 price: String(price).trim(),
                 quantity: String(qty).trim(),
                 imageUrl: imgUrl,
