@@ -1,3 +1,81 @@
+// Helper for robust waiting
+async function safeWaitForSelector(page, selector, options = {}) {
+  const maxRetries = 3;
+  let retries = 0;
+  while (retries < maxRetries) {
+    try {
+      return await page.waitForSelector(selector, options);
+    } catch (err) {
+      if (err.message.includes("frame got detached") ||
+        err.message.includes("Execution context was destroyed") ||
+        err.message.includes("Protocol error")) {
+        console.log(`[SafeWait] Refinding selector ${selector} due to error: ${err.message}. Retry ${retries + 1}/${maxRetries}`);
+        retries++;
+        await new Promise(r => setTimeout(r, 1000));
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw new Error(`Failed to find ${selector} after ${maxRetries} retries due to frame issues`);
+}
+
+// Helper to check for "Something went wrong" error and click Retry
+async function checkForErrorAndRetry(page) {
+  try {
+    // Give a moment for potential error screen to render after click
+    await new Promise(r => setTimeout(r, 1000));
+
+    const errorDetected = await page.evaluate(() => {
+      const errorText = document.body.innerText;
+      // Common error phrases
+      const hasErrorText = errorText.includes("Something went wrong") ||
+        errorText.includes("Uh’oh") ||
+        errorText.includes("refresh or come back later");
+
+      if (hasErrorText) {
+        // Try to find a Retry button
+        const retryBtn = document.querySelector('button[aria-label="Retry"]') ||
+          Array.from(document.querySelectorAll('button, div[role="button"], span[role="button"]'))
+            .find(el => el.innerText.trim() === "Retry" || el.innerText.trim() === "RETRY");
+
+        if (retryBtn) {
+          retryBtn.click();
+          return { handled: true, type: 'retry' };
+        }
+
+        // If no Retry button, check for "Go To Home" (Unserviceable area?)
+        const homeBtn = Array.from(document.querySelectorAll('button, a'))
+          .find(el => el.innerText.toLowerCase().includes("go to home"));
+
+        if (homeBtn) {
+          return { handled: false, type: 'fatal_home' };
+        }
+
+        return { handled: false, type: 'unknown_error' };
+      }
+      return false; // No error detected
+    });
+
+    if (errorDetected) {
+      if (errorDetected.handled && errorDetected.type === 'retry') {
+        console.log("[Instamart] Error screen detected. Clicked 'Retry'. Waiting for reload...");
+        await new Promise(r => setTimeout(r, 3000));
+        return true; // Successfully clicked retry
+      } else if (errorDetected.type === 'fatal_home') {
+        console.log("[Instamart] Fatal error detected (Go To Home). Location likely unserviceable.");
+        return true; // Return true to signal "Error State", triggering retry loop (maybe different coordinates/browser restart helps)
+      } else {
+        console.log("[Instamart] Unhandled error screen detected.");
+        return true; // Signal error presence
+      }
+    }
+  } catch (e) {
+    console.log("Error check failed (ignorable):", e.message);
+  }
+  return false;
+}
+
 async function setInstamartLocation(page, loc) {
   console.log(`Setting Instamart location to: ${loc}`);
 
@@ -9,6 +87,8 @@ async function setInstamartLocation(page, loc) {
     while (attempts < maxAttempts) {
       attempts++;
       try {
+        console.log(`[DEBUG-INSTAMART] Navigation attempt ${attempts}/${maxAttempts}`);
+        await page.screenshot({ path: `instamart_debug_nav_attempt_${attempts}.png` });
         const currentUrl = page.url();
         // Check if already on Instamart or if page is blank/error
         if (!currentUrl.includes("swiggy.com/instamart") || currentUrl === "about:blank") {
@@ -26,6 +106,15 @@ async function setInstamartLocation(page, loc) {
         } else {
           console.log("Already on Instamart page");
         }
+
+        // Check for error screen immediately after load
+        await new Promise(r => setTimeout(r, 2000));
+        const retryClicked = await checkForErrorAndRetry(page);
+        if (retryClicked) {
+          console.log("Retry clicked on load, waiting for page to stabilize...");
+          await new Promise(r => setTimeout(r, 3000));
+        }
+
         break; // Success
       } catch (navError) {
         console.error(`Navigation attempt ${attempts} failed: ${navError.message}`);
@@ -37,107 +126,348 @@ async function setInstamartLocation(page, loc) {
     // Set viewport for consistent rendering
     await page.setViewport({ width: 1536, height: 695 });
 
-    // Click on the address/location button
-    console.log("Clicking on location button...");
-    await page.waitForSelector('[data-testid="address-name"]', { timeout: 10000 })
-      .catch(e => console.log("Address name selector not found, trying to proceed anyway..."));
+    // Inner function to attempt setting location (allows for restarting on error)
+    const attemptSetLocation = async () => {
+      // Check for "Share location" popup or main address button
+      console.log("Checking for location entry points (popup or header)...");
+      await page.screenshot({ path: 'instamart_debug_before_entry_check.png' });
+      // Race between popup search, header address, default address container, and random popups
+      const searchSelector = '[data-testid="search-location"]';
+      const addressSelector = '[data-testid="address-name"]';
+      const defaultAddressSelector = '[data-testid="DEFAULT_ADDRESS_CONTAINER"]';
+      let foundSelector = null;
 
-    await page.click('[data-testid="address-name"]')
-      .catch(e => console.log("Click on address name failed, retrying..."));
+      try {
+        // Use safeWaitForSelector-like logic but specifically for the race
+        foundSelector = await Promise.race([
+          safeWaitForSelector(page, searchSelector, { timeout: 10000 }).then(() => searchSelector).catch(() => null),
+          safeWaitForSelector(page, addressSelector, { timeout: 10000 }).then(() => addressSelector).catch(() => null),
+          safeWaitForSelector(page, defaultAddressSelector, { timeout: 10000 }).then(() => defaultAddressSelector).catch(() => null),
+        ]);
 
-    // Click on search location field
-    console.log("Opening location search...");
-    await page.waitForSelector('[data-testid="search-location"]', { timeout: 10000 });
-    try {
-      await Promise.all([
-        page.click('[data-testid="search-location"]'),
-        page.waitForNavigation({ timeout: 10000 }).catch(() => { })
-      ]);
-    } catch (err) {
-      console.log("Navigation after clicking search location may not have occurred:", err.message);
-    }
-
-    // Wait for and click on the location search input field
-    console.log("Focusing location search input...");
-    await page.waitForSelector('[placeholder="Search for area, street name\\2026"]', { timeout: 10000 });
-    await page.click('[placeholder="Search for area, street name\\2026"]');
-
-    // Type the location
-    console.log(`Typing location search: ${loc}`);
-    await page.waitForSelector('[placeholder="Search for area, street name\\2026"]:not([disabled])', { timeout: 10000 });
-    await page.type('[placeholder="Search for area, street name\\2026"]', loc);
-
-    // Wait for location suggestions and click the first one
-    console.log("Waiting for location suggestions...");
-    await new Promise(r => setTimeout(r, 2000));
-
-    // Robust suggestion selection
-    try {
-      await page.waitForSelector('div[class*="_1"]', { timeout: 5000 }); // Generic wait for results
-    } catch (e) { }
-
-    const clickedSuggestion = await page.evaluate(() => {
-      // Strategy 1: Look for common list item classes used by Swiggy
-      const items = Array.from(document.querySelectorAll('div[role="button"], div[class*="suggestion"], ._11n32'));
-      if (items.length > 0) {
-        items[0].click();
-        return true;
-      }
-      return false;
-    });
-
-    if (!clickedSuggestion) {
-      console.log("Using fallback click for suggestion");
-      // Fallback: Click mostly likely area of first result
-      await page.mouse.click(300, 200).catch(e => { });
-    }
-
-    // Click on confirm location button
-    console.log("Confirming location...");
-    await new Promise(r => setTimeout(r, 2000));
-
-    // Robust confirm button finder
-    const clickedConfirm = await page.evaluate(() => {
-      const buttons = Array.from(document.querySelectorAll('button'));
-      const target = buttons.find(b => {
-        const txt = b.innerText.toLowerCase();
-        return txt.includes('confirm') || txt.includes('continue') || txt.includes('proceed');
-      });
-
-      if (target) {
-        target.click();
-        return true;
-      }
-      return false;
-    });
-
-    if (!clickedConfirm) {
-      // Fallback for fragile class selector
-      const confirmBtn = await page.$('._2xPHa').catch(() => null);
-      if (confirmBtn) await confirmBtn.click();
-      else console.log("Confirm button not found via text or class");
-    }
-
-    // Wait for location to be set
-    await new Promise(r => setTimeout(r, 3000));
-
-    // Handle potential popups/interstitials
-    console.log("Checking for popups...");
-    try {
-      await page.evaluate(() => {
-        // aggressive cleanup of overlays
-        const overlays = document.querySelectorAll('[class*="overlay"], [class*="modal"]');
-        overlays.forEach(el => {
-          if (el.innerText.includes("close") || el.innerText.includes("skip")) {
-            el.click();
+        if (foundSelector === searchSelector) {
+          console.log("Found search location button (likely in popup)");
+        } else if (foundSelector === addressSelector) {
+          console.log("Found address header button");
+          await page.click(addressSelector).catch(e => console.log("Click on address name failed, trying to proceed..."));
+        } else if (foundSelector === defaultAddressSelector) {
+          console.log("Found 'Add your location' container");
+          // Try clicking the title specifically, as it captures the intent better
+          const titleClicked = await page.evaluate(() => {
+            const title = document.querySelector('[data-testid="DEFAULT_ADDRESS_TITLE"]');
+            if (title) {
+              title.click();
+              return true;
+            }
+            const container = document.querySelector('[data-testid="DEFAULT_ADDRESS_CONTAINER"]');
+            if (container) {
+              container.click();
+              return true;
+            }
+            return false;
+          });
+          if (!titleClicked) {
+            await page.click(defaultAddressSelector).catch(e => console.log("Click on default address container failed, trying to proceed..."));
           }
-        });
+        } else {
+          console.log("[DEBUG-INSTAMART] Neither search popup nor address header found immediately");
+          await page.screenshot({ path: 'instamart_debug_no_entry_point.png' });
+          console.log("Neither search popup nor address header found immediately, proceeding to try explicit search click...");
+          // Check if we hit the error screen, retry and RESTART location setting if so
+          const retried = await checkForErrorAndRetry(page);
+          if (retried) return false; // Signal to restart
+        }
+      } catch (e) {
+        console.log("Error checking entry points:", e.message);
+      }
 
-        // Click common close buttons
-        const closeBtns = document.querySelectorAll('button[aria-label="close"], span[class*="close"], svg[class*="close"]');
-        closeBtns.forEach(btn => btn.parentElement?.click());
+      // Click on search location field ONLY if we didn't just click a main entry point that opens the search
+      // (Unless we clicked searchSelector, which IS the button)
+      if (foundSelector === searchSelector || !foundSelector) {
+        console.log("Opening location search...");
+        try {
+          // Use safe wait here
+          await safeWaitForSelector(page, '[data-testid="search-location"]', { timeout: 10000 });
+
+          await Promise.all([
+            page.click('[data-testid="search-location"]'),
+            page.waitForNavigation({ timeout: 5000 }).catch(() => { }) // increased tolerance
+          ]);
+        } catch (err) {
+          console.log("[DEBUG-INSTAMART] Error interacting with entry point:", err.message);
+          await page.screenshot({ path: 'instamart_debug_entry_interaction_error.png' });
+          console.log("Navigation after clicking search location may not have occurred (or failed):", err.message);
+        }
+      } else {
+        console.log("Skipping explicit search icon click as we engaged an address entry point.");
+        // Wait a moment for the sidebar to transition
+        await new Promise(r => setTimeout(r, 1000));
+      }
+
+      // Wait for and click on the location search input field
+      console.log("Focusing location search input...");
+
+      const searchInputSelectors = [
+        '[placeholder="Search for area, street name\\2026"]',
+        '[placeholder*="Search for area"]',
+        'input[placeholder="Search for area, street name..."]',
+        'input[placeholder*="Search"]',
+        '[data-testid="search-location-input"]',
+        'input._381fS' // Legacy class backup
+      ];
+
+      let searchInputSelector = null;
+      for (const sel of searchInputSelectors) {
+        try {
+          // Short timeout for each to cycle through quickly
+          if (await page.$(sel)) {
+            searchInputSelector = sel;
+            console.log(`Found search input with selector: ${sel}`);
+            break;
+          }
+        } catch (e) { }
+      }
+
+      if (!searchInputSelector) {
+        // Try waiting for the most generic one
+        try {
+          searchInputSelector = '[placeholder*="Search"]';
+          await safeWaitForSelector(page, searchInputSelector, { timeout: 5000 });
+        } catch (e) {
+          console.log("Failed to find search input, dumping html...");
+          try {
+            const fs = require('fs');
+            const html = await page.content();
+            fs.writeFileSync('instamart_debug_dump.html', html);
+            console.log("Dumped HTML to instamart_debug_dump.html");
+          } catch (fsErr) {
+            console.log("Failed to dump HTML to file:", fsErr.message);
+          }
+          throw new Error("Could not find location search input");
+        }
+      }
+
+      await page.click(searchInputSelector);
+      console.log("[DEBUG-INSTAMART] Focused search input");
+      await page.screenshot({ path: 'instamart_debug_search_focused.png' });
+
+      // Type the location
+      console.log(`Typing location search: ${loc}`);
+      // Ensure the input we found is still valid/visible
+      await safeWaitForSelector(page, searchInputSelector, { timeout: 10000 });
+
+      // Type slower to look human and ensure UI catches up
+      await page.type(searchInputSelector, loc, { delay: 150 });
+      console.log(`[DEBUG-INSTAMART] Typed location: ${loc}`);
+      await page.screenshot({ path: 'instamart_debug_typed_location.png' });
+
+      // Wait for location suggestions and click the first one
+      console.log("Waiting for location suggestions...");
+      await new Promise(r => setTimeout(r, 2000));
+
+      // Robust suggestion selection
+      try {
+        await safeWaitForSelector(page, 'div[class*="_1"]', { timeout: 5000 }); // Generic wait for results
+      } catch (e) {
+        console.log("[DEBUG-INSTAMART] Timed out waiting for generic suggestions selector");
+      }
+      console.log("[DEBUG-INSTAMART] Suggestions should be visible now");
+      await page.screenshot({ path: 'instamart_debug_suggestions_visible.png' });
+
+      const clickedSuggestion = await page.evaluate(() => {
+        // Strategy 1: Look for specific classes from user screenshot
+        // The screenshot shows wrapper _11n32 and inner _2esgM
+        const items = Array.from(document.querySelectorAll('div._11n32, div._2esgM'));
+
+        if (items.length > 0) {
+          console.log(`Found ${items.length} suggestions.`);
+          items[0].click();
+          return true;
+        }
+
+        // Strategy 2: Fallback to any button-like element in the results container
+        const genericItems = Array.from(document.querySelectorAll('div[data-testid="search-result-item"], [class*="suggestion"]'));
+        if (genericItems.length > 0) {
+          genericItems[0].click();
+          return true;
+        }
+
+        return false;
       });
-    } catch (e) { console.log("Popup check skipped"); }
+
+      if (!clickedSuggestion) {
+        console.log("Using fallback click for suggestion");
+        // Fallback: Click mostly likely area of first result (adjusted coordinates if needed)
+        await page.mouse.click(300, 250).catch(e => { });
+      }
+
+      // Click on confirm location button
+      console.log("Confirming location...");
+      await new Promise(r => setTimeout(r, 2000));
+
+      // Wait for potential random popup (deal/item)
+      console.log("Waiting for random popup...");
+      await new Promise(r => setTimeout(r, 2000));
+
+      // Handle random blocking popups BEFORE confirming
+      try {
+        await page.evaluate(() => {
+          const closeSelectors = [
+            'button[aria-label*="close"]',
+            'button[aria-label*="Close"]',
+            'svg[data-testid="close-button"]',
+            '[class*="close"]',
+            '[class*="Close"]',
+            '.icon-close-thin', // Common wrapper class
+            '._11n32' // Sometimes close buttons are inside this wrapper? No, that was the list.
+          ];
+
+          // Check specifically for the random item popup
+          const overlays = document.querySelectorAll('[class*="overlay"], [class*="modal"], [role="dialog"]');
+          if (overlays.length > 0) {
+            console.log(`Found ${overlays.length} overlays/modals. Trying to close...`);
+            overlays.forEach(overlay => {
+              // Try to find a close button within the overlay
+              const closeBtn = overlay.querySelector('button, svg, [role="button"]');
+              if (closeBtn) closeBtn.click();
+            });
+          }
+
+          // Generic close button clicking
+          closeSelectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => {
+              const rect = el.getBoundingClientRect();
+              // Heuristic: visible and smallish
+              if (rect.width > 0 && rect.width < 100 && rect.height > 0 && rect.height < 100) {
+                el.click();
+              }
+            });
+          });
+        });
+      } catch (e) {
+        console.log("Pre-confirmation popup check failed:", e);
+      }
+
+      // Check for error screen (like Something went wrong) which might have appeared instead of confirmation
+      const retriedError = await checkForErrorAndRetry(page);
+      if (retriedError) return false; // Signal to restart
+
+      // Click on confirm location button
+      console.log("Confirming location...");
+      await page.screenshot({ path: 'instamart_debug_before_confirm.png' });
+
+      // Robust confirm button finder - Get Coordinates
+      const confirmBtnBox = await page.evaluate(() => {
+        // Priority: Specific classes from user screenshot
+        // button.sc-iGgWBj, span.jvMXGN ("Confirm Location")
+        const specificBtn = document.querySelector('button.sc-iGgWBj, span.jvMXGN');
+        let target = null;
+
+        if (specificBtn) {
+          // Click the button itself if we found the span
+          target = specificBtn.tagName === 'BUTTON' ? specificBtn : specificBtn.closest('button');
+        }
+
+        if (!target) {
+          const buttons = Array.from(document.querySelectorAll('button'));
+          target = buttons.find(b => {
+            const txt = b.innerText.toLowerCase();
+            return txt.includes('confirm') || txt.includes('continue') || txt.includes('proceed');
+          });
+        }
+
+        if (target) {
+          const rect = target.getBoundingClientRect();
+          // Return non-zero rect validation
+          if (rect.width > 0 && rect.height > 0) {
+            return {
+              x: rect.x,
+              y: rect.y,
+              width: rect.width,
+              height: rect.height
+            };
+          }
+        }
+        return null;
+      });
+
+      if (confirmBtnBox) {
+        console.log(`[DEBUG-INSTAMART] Found confirm button at (${confirmBtnBox.x}, ${confirmBtnBox.y}). Clicking via mouse...`);
+        // Calculate center
+        const clickX = confirmBtnBox.x + (confirmBtnBox.width / 2);
+        const clickY = confirmBtnBox.y + (confirmBtnBox.height / 2);
+
+        // Move and click
+        await page.mouse.move(clickX, clickY);
+        await page.mouse.down();
+        await new Promise(r => setTimeout(r, 100)); // Short hold
+        await page.mouse.up();
+
+        console.log("[DEBUG-INSTAMART] Mouse click performed.");
+      } else {
+        console.log("[DEBUG-INSTAMART] Confirm button bounding box not found. Trying fallback JS click...");
+        await page.evaluate(() => {
+          const specificBtn = document.querySelector('button.sc-iGgWBj, span.jvMXGN');
+          if (specificBtn) specificBtn.click();
+        });
+      }
+
+      // Post-Click Verification: Wait for the button to disappear or the address element to appear
+      console.log("[DEBUG-INSTAMART] Verifying if click worked (waiting for button to disappear)...");
+      try {
+        await page.waitForFunction(() => {
+          const btn = document.querySelector('button.sc-iGgWBj, span.jvMXGN');
+          if (!btn) return true; // Button gone
+          return btn.offsetParent === null; // Button hidden
+        }, { timeout: 5000 });
+        console.log("[DEBUG-INSTAMART] Confirm button disappeared. Assumption: Success.");
+      } catch (timeout) {
+        console.log("[DEBUG-INSTAMART] Confirm button is STILL visible after click. Click failed.");
+        await page.screenshot({ path: 'instamart_debug_click_failed_button_visible.png' });
+        return false; // Trigger retry since the button is still there
+      }
+
+      // Check for error screen (like Something went wrong) which might have appeared instead of confirmation
+      // THIS IS NOW INSIDE THE LOOP
+      const retriedErrorAfterConfirm = await checkForErrorAndRetry(page);
+      if (retriedErrorAfterConfirm) {
+        console.log("Error detected after confirmation. Retrying flow...");
+        await page.screenshot({ path: 'instamart_debug_error_after_confirm.png' });
+        return false; // Signal to restart
+      }
+
+
+      return true; // Success
+    };
+
+    // Try loop for location setting
+    let success = false;
+    for (let i = 0; i < 4; i++) { // Increased retries to handle sequential errors
+      success = await attemptSetLocation();
+      if (success) break;
+      console.log(`Retrying location setting flow (Attempt ${i + 1}/4)...`);
+      await new Promise(r => setTimeout(r, 2000));
+    }
+
+    // Attempt to wait for ANY of the address selectors to appear
+    try {
+      await page.waitForFunction(() => {
+        const selectors = [
+          '[data-testid="address-line"]',
+          '[data-testid="address-name"]',
+          '._3FN4I',
+          '._3eFQ-',
+          '.location-address',
+          '.address-text',
+          'div[class*="address"]',
+          'span[class*="address"]'
+        ];
+        return selectors.some(s => document.querySelector(s));
+      }, { timeout: 8000 });
+      console.log("[DEBUG-INSTAMART] Location header detected.");
+    } catch (e) {
+      console.log("Address line selector not found immediately, proceeding to check...");
+    }
 
     // Final navigation check
     if (page.url() === "about:blank") {
@@ -152,6 +482,10 @@ async function setInstamartLocation(page, loc) {
       return locTitle;
     } else {
       console.log(`Failed to verify Instamart location after setting to: ${loc}`);
+      // Capture state for debugging
+      await page.screenshot({ path: 'instamart_verification_failed_debug.png' });
+      const bodyText = await page.evaluate(() => document.body.innerText.slice(0, 1000));
+      console.log(`[DEBUG-INSTAMART] Page text at failure (first 1000 chars):\n${bodyText}`);
       return null;
     }
   } catch (err) {
@@ -161,28 +495,41 @@ async function setInstamartLocation(page, loc) {
 }
 
 async function isLocationSet(page) {
-  console.log("Checking if Instamart location is set...");
+  console.log("[Instamart] Checking if location is set...");
 
   try {
     // Try different selectors that might contain location information
     const selectors = [
+      '[data-testid="address-line"]', // User suggested robust selector
       '[data-testid="address-name"]',
       '._3FN4I',
       '._3eFQ-',
       '.location-address',
-      '.address-text'
+      '.address-text',
+      'div[class*="address"]',
+      'span[class*="address"]'
     ];
 
     for (const sel of selectors) {
       try {
-        const el = await page.$(sel);
-        if (!el) continue;
+        const elements = await page.$$(sel);
+        for (const el of elements) {
+          const txt = await page.evaluate(e => e.textContent.trim(), el);
+          console.log(`[Instamart] Found text in ${sel}: "${txt}"`);
 
-        const txt = await page.$eval(sel, el => el.textContent.trim());
-        if (txt && txt.length > 2 && !txt.toLowerCase().includes("other") &&
-          !txt.toLowerCase().includes("select") && !txt.toLowerCase().includes("enter")) {
-          console.log(`Instamart location found: "${txt}"`);
-          return txt;
+          // Filter out common non-address headers like "Delivery to", "9 mins", "Work", "Home"
+          const lowerTxt = txt.toLowerCase();
+          if (txt && txt.length > 5 && // Address should be reasonably long
+            !lowerTxt.includes("delivery to") &&
+            !lowerTxt.includes("mins") &&
+            !lowerTxt.includes("select") &&
+            !lowerTxt.includes("enter location") &&
+            !lowerTxt.includes("other") &&
+            !lowerTxt.match(/^\d+$/) // Exclude pure numbers
+          ) {
+            console.log(`[Instamart] Location successfully verified: "${txt}"`);
+            return txt;
+          }
         }
       } catch (e) {
         // Continue to next selector if this one fails
@@ -191,17 +538,23 @@ async function isLocationSet(page) {
 
     // Check if we're on the main page with products
     const isMain = await page.evaluate(() => {
-      return document.querySelector('.product-grid, [class*="product-list"], [class*="items-container"]') !== null;
+      // If we see the main product grid or categories, we are likely inside
+      return document.querySelector('[data-testid="category-container"]') !== null ||
+        document.querySelector('[data-testid="home-page"]') !== null ||
+        document.querySelectorAll('[data-testid="product-card"]').length > 0;
     });
 
     if (isMain) {
-      console.log("On Instamart main page with products, assuming location is set");
-      return "Location Set";
+      console.log("[Instamart] On main page with products, assuming location is set");
+      return "Location Set (Main Page Detected)";
     }
 
     return null;
   } catch (err) {
-    console.error("Error checking if Instamart location is set:", err);
+    console.error("[Instamart] Error checking if location is set:", err);
+    try {
+      await page.screenshot({ path: 'instamart_location_verification_failed.png' });
+    } catch (e) { }
     return null;
   }
 }
