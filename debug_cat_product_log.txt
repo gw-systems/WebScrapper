@@ -1,0 +1,4 @@
+Starting Category Product Test...
+[Test] Testing URL: https://www.swiggy.com/instamart/city/ahmedabad/c/fresh-vegetables
+[Test] Found 20 products.
+[Test] Sample Product: {"name":"Small Cauliflower","image":"https://instamart-media-assets.swiggy.com/swiggy/image/upload/fl_lossy,f_auto,q_auto/oc5f9hp0qmf5mk3cqsbg","price":21,"brand":"Fruits and Vegetables","quantity":"","id":"instamart_1769864137402_3y5fm","available":true}

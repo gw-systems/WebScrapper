@@ -1,0 +1,67 @@
+node : C:\Projects\We
+bScrapper\backend\ins
+tamart\set-location.j
+s:286
+At line:1 char:1
++ node -e "try { requ
+ire('./backend/instam
+art/set-location.js')
+; consol ...
++ ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (C:\Proj   
+ ects\Web...locat    
+ion.js:286:Strin    
+g) [], RemoteExc    
+eption
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+      const 
+retriedError = await 
+checkForErrorAndRetry
+(page);
+            ^
+
+SyntaxError: 
+Identifier 
+'retriedError' has 
+already been declared
+    at wrapSafe (node
+:internal/modules/cjs
+/loader:1620:18)
+    at 
+Module._compile (node
+:internal/modules/cjs
+/loader:1662:20)
+    at Object..js (no
+de:internal/modules/c
+js/loader:1820:10)
+    at Module.load (n
+ode:internal/modules/
+cjs/loader:1423:32)
+    at 
+Function._load (node:
+internal/modules/cjs/
+loader:1246:12)
+    at TracingChannel
+.traceSync (node:diag
+nostics_channel:322:1
+4)
+    at 
+wrapModuleLoad (node:
+internal/modules/cjs/
+loader:235:24)
+    at 
+Module.require (node:
+internal/modules/cjs/
+loader:1445:12)
+    at require (node:
+internal/modules/help
+ers:135:16)
+    at [eval]:1:7

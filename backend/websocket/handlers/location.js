@@ -45,35 +45,69 @@ async function handleSetLocation(socket, cid, data) {
     }));
 
     // Execute in parallel
-    const locationPromises = targetServices.map(async (svc) => {
+    // Execute sequentially to avoid resource contention
+    // const locationPromises = targetServices.map(async (svc) => { ... });
+    const results = [];
+
+    for (const svc of targetServices) {
         try {
             // Check if handler exists
             const handler = locationHandlers[svc];
             if (!handler) {
                 logger.warn(`Location handler for ${svc} not implemented yet`, { cid });
-                return { service: svc, success: false, error: 'Service not supported yet' };
+                results.push({ service: svc, success: false, error: 'Service not supported yet' });
+                continue;
             }
 
-            // Get browser page from pool
-            const { page } = await BrowserPool.getOrInitBrowser(cid, svc);
+            // High-level Retry Loop (specifically useful for Instamart flakiness)
+            const MAX_SERVICE_RETRIES = svc === 'instamart' ? 2 : 1;
+            let serviceSuccess = false;
+            let serviceResult = null;
+            let serviceError = null;
 
-            // Execute handler
-            const result = await handler(page, location);
+            for (let attempt = 1; attempt <= MAX_SERVICE_RETRIES; attempt++) {
+                if (attempt > 1) {
+                    if (svc === 'instamart') logger.info(`Retrying ${svc} location setting (Attempt ${attempt}/${MAX_SERVICE_RETRIES})...`, { cid });
+                    // Force close previous browser instance to clean state
+                    await BrowserPool.closeBrowser(cid, svc);
+                    await new Promise(r => setTimeout(r, 2000));
+                }
 
-            if (result) {
-                SessionManager.setLocationStatus(cid, svc, true);
-                return { service: svc, success: true, location: result };
-            } else {
-                return { service: svc, success: false, error: 'Verification failed' };
+                try {
+                    // Get browser page from pool
+                    const { page } = await BrowserPool.getOrInitBrowser(cid, svc);
+
+                    // Execute handler
+                    const result = await handler(page, location);
+
+                    if (result) {
+                        SessionManager.setLocationStatus(cid, svc, true);
+                        results.push({ service: svc, success: true, location: result });
+                        serviceSuccess = true;
+                        break; // Success, exit retry loop
+                    } else {
+                        // Verification failed inside handler
+                        serviceError = 'Verification failed';
+                    }
+                } catch (err) {
+                    serviceError = err.message;
+                    logger.error(`${svc} attempt ${attempt} failed`, { cid, error: err.message });
+                }
+            }
+
+            if (!serviceSuccess) {
+                results.push({ service: svc, success: false, error: serviceError || 'Failed after retries' });
             }
 
         } catch (error) {
-            logger.error(`Location set failed for ${svc}`, { cid, error: error.message });
-            return { service: svc, success: false, error: error.message };
+            logger.error(`Location set logic error for ${svc}`, { cid, error: error.message });
+            results.push({ service: svc, success: false, error: error.message });
         }
-    });
+    }
 
-    const results = await Promise.all(locationPromises);
+    // const results = await Promise.all(locationPromises);
+
+    // const results = await Promise.all(locationPromises);
 
     // Send aggregated results to frontend
     socket.send(JSON.stringify({

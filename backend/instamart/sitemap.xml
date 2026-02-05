@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+	<!--File created at 2026-01-31 00:47:29.11905787 +0000 UTC-->
+	<sitemap>
+		<loc>https://www.swiggy.com/instamart/sitemap/category-sitemap.xml.gz</loc>
+		<lastmod>2026-01-31</lastmod>
+	</sitemap>
+	<sitemap>
+		<loc>https://www.swiggy.com/instamart/sitemap/subcategory-sitemap.xml.gz</loc>
+		<lastmod>2026-01-31</lastmod>
+	</sitemap>
+	<sitemap>
+		<loc>https://www.swiggy.com/instamart/sitemap/pdp-sitemap.xml.gz</loc>
+		<lastmod>2026-01-31</lastmod>
+	</sitemap>
+	<sitemap>
+		<loc>https://www.swiggy.com/instamart/sitemap/brand-sitemap.xml.gz</loc>
+		<lastmod>2026-01-31</lastmod>
+	</sitemap>
+	<sitemap>
+		<loc>https://www.swiggy.com/instamart/sitemap/recipe-sitemap.xml.gz</loc>
+		<lastmod>2026-01-31</lastmod>
+	</sitemap>
+</sitemapindex>

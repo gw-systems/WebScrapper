@@ -131,89 +131,93 @@ async function setInstamartLocation(page, loc) {
       // Check for "Share location" popup or main address button
       console.log("Checking for location entry points (popup or header)...");
       await page.screenshot({ path: 'instamart_debug_before_entry_check.png' });
-      // Race between popup search, header address, default address container, and random popups
+
+      // PRIORITY: Check if search-location popup is visible first (this appears on initial load)
       const searchSelector = '[data-testid="search-location"]';
       const addressSelector = '[data-testid="address-name"]';
       const defaultAddressSelector = '[data-testid="DEFAULT_ADDRESS_CONTAINER"]';
       let foundSelector = null;
 
-      try {
-        // Use safeWaitForSelector-like logic but specifically for the race
-        foundSelector = await Promise.race([
-          safeWaitForSelector(page, searchSelector, { timeout: 10000 }).then(() => searchSelector).catch(() => null),
-          safeWaitForSelector(page, addressSelector, { timeout: 10000 }).then(() => addressSelector).catch(() => null),
-          safeWaitForSelector(page, defaultAddressSelector, { timeout: 10000 }).then(() => defaultAddressSelector).catch(() => null),
-        ]);
+      // First check if search-location is immediately visible (the popup)
+      const searchLocationExists = await page.$(searchSelector);
 
-        if (foundSelector === searchSelector) {
-          console.log("Found search location button (likely in popup)");
-        } else if (foundSelector === addressSelector) {
-          console.log("Found address header button");
-          await page.click(addressSelector).catch(e => console.log("Click on address name failed, trying to proceed..."));
-        } else if (foundSelector === defaultAddressSelector) {
-          console.log("Found 'Add your location' container");
-          // Try clicking the title specifically, as it captures the intent better
-          const titleClicked = await page.evaluate(() => {
-            const title = document.querySelector('[data-testid="DEFAULT_ADDRESS_TITLE"]');
-            if (title) {
-              title.click();
-              return true;
-            }
-            const container = document.querySelector('[data-testid="DEFAULT_ADDRESS_CONTAINER"]');
-            if (container) {
-              container.click();
-              return true;
-            }
-            return false;
-          });
-          if (!titleClicked) {
-            await page.click(defaultAddressSelector).catch(e => console.log("Click on default address container failed, trying to proceed..."));
-          }
-        } else {
-          console.log("[DEBUG-INSTAMART] Neither search popup nor address header found immediately");
-          await page.screenshot({ path: 'instamart_debug_no_entry_point.png' });
-          console.log("Neither search popup nor address header found immediately, proceeding to try explicit search click...");
-          // Check if we hit the error screen, retry and RESTART location setting if so
-          const retried = await checkForErrorAndRetry(page);
-          if (retried) return false; // Signal to restart
-        }
-      } catch (e) {
-        console.log("Error checking entry points:", e.message);
-      }
+      if (searchLocationExists) {
+        console.log("Found search-location popup on initial load - clicking it directly");
+        foundSelector = searchSelector;
 
-      // Click on search location field ONLY if we didn't just click a main entry point that opens the search
-      // (Unless we clicked searchSelector, which IS the button)
-      if (foundSelector === searchSelector || !foundSelector) {
-        console.log("Opening location search...");
         try {
-          // Use safe wait here
-          await safeWaitForSelector(page, '[data-testid="search-location"]', { timeout: 10000 });
-
-          await Promise.all([
-            page.click('[data-testid="search-location"]'),
-            page.waitForNavigation({ timeout: 5000 }).catch(() => { }) // increased tolerance
-          ]);
+          await page.click(searchSelector);
+          await new Promise(r => setTimeout(r, 2000)); // Wait for search input to appear
+          await page.screenshot({ path: 'instamart_debug_after_popup_click.png' });
         } catch (err) {
-          console.log("[DEBUG-INSTAMART] Error interacting with entry point:", err.message);
+          console.log("[DEBUG-INSTAMART] Error clicking search-location popup:", err.message);
           await page.screenshot({ path: 'instamart_debug_entry_interaction_error.png' });
-          console.log("Navigation after clicking search location may not have occurred (or failed):", err.message);
         }
       } else {
-        console.log("Skipping explicit search icon click as we engaged an address entry point.");
-        // Wait a moment for the sidebar to transition
-        await new Promise(r => setTimeout(r, 1000));
+        // If no popup, try other selectors (fallback for different UI states)
+        try {
+          foundSelector = await Promise.race([
+            safeWaitForSelector(page, addressSelector, { timeout: 5000 }).then(() => addressSelector).catch(() => null),
+            safeWaitForSelector(page, defaultAddressSelector, { timeout: 5000 }).then(() => defaultAddressSelector).catch(() => null),
+          ]);
+
+          if (foundSelector === addressSelector) {
+            console.log("Found address header button");
+            await page.click(addressSelector).catch(e => console.log("Click on address name failed, trying to proceed..."));
+            await new Promise(r => setTimeout(r, 1500));
+          } else if (foundSelector === defaultAddressSelector) {
+            console.log("Found 'Add your location' container");
+            const titleClicked = await page.evaluate(() => {
+              const title = document.querySelector('[data-testid="DEFAULT_ADDRESS_TITLE"]');
+              if (title) {
+                title.click();
+                return true;
+              }
+              const container = document.querySelector('[data-testid="DEFAULT_ADDRESS_CONTAINER"]');
+              if (container) {
+                container.click();
+                return true;
+              }
+              return false;
+            });
+            if (!titleClicked) {
+              await page.click(defaultAddressSelector).catch(e => console.log("Click on default address container failed, trying to proceed..."));
+            }
+            await new Promise(r => setTimeout(r, 1500));
+
+            // After clicking, check if search-location button appeared in modal
+            const searchLocationDiv = await page.$('[data-testid="search-location"]');
+            if (searchLocationDiv) {
+              console.log("Found search-location button in modal, clicking it...");
+              await searchLocationDiv.click();
+              await new Promise(r => setTimeout(r, 1500));
+              await page.screenshot({ path: 'instamart_debug_after_search_location_click.png' });
+            }
+          } else {
+            console.log("[DEBUG-INSTAMART] No location entry points found");
+            await page.screenshot({ path: 'instamart_debug_no_entry_point.png' });
+            const retried = await checkForErrorAndRetry(page);
+            if (retried) return false;
+          }
+        } catch (e) {
+          console.log("Error checking entry points:", e.message);
+        }
       }
 
       // Wait for and click on the location search input field
       console.log("Focusing location search input...");
 
       const searchInputSelectors = [
+        'input._1wkJd', // Input field in search view (class from Instamart CSS)
         '[placeholder="Search for area, street name\\2026"]',
         '[placeholder*="Search for area"]',
+        '[placeholder*="Search for an area"]',
         'input[placeholder="Search for area, street name..."]',
         'input[placeholder*="Search"]',
         '[data-testid="search-location-input"]',
-        'input._381fS' // Legacy class backup
+        'input._381fS', // Legacy class backup
+        '.gwpTv input', // Input inside search container
+        'input[type="text"]', // Generic text input as last resort
       ];
 
       let searchInputSelector = null;

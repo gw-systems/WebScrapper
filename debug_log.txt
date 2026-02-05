@@ -1,0 +1,12 @@
+Starting Test...
+Testing Instamart Category Fetching...
+[Scraper] Fetching Instamart categories from sitemap...
+[Scraper] Requesting URL: https://www.swiggy.com/instamart/sitemap/category-sitemap-0.xml.gz
+[Scraper] Response received, status: 200
+[Scraper] Sitemap keys: ["?xml","urlset"]
+[Scraper] URLSet keys: ["url"]
+[Scraper] URL Entry count: 15
+[Scraper] First URL entry: {"loc":"https://www.swiggy.com/instamart","lastmod":"2026-01-31","changefreq":"daily","priority":0.7}
+[Scraper] Found 15 Instamart categories.
+Successfully fetched 15 categories.
+First 3 categories: [{"name":"instamart","url":"https://www.swiggy.com/instamart","source":"instamart"},{"name":"ahmedabad","url":"https://www.swiggy.com/instamart/city/ahmedabad","source":"instamart"},{"name":"fresh vegetables","url":"https://www.swiggy.com/instamart/city/ahmedabad/c/fresh-vegetables","source":"instamart"}]

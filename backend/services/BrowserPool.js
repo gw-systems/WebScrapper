@@ -54,7 +54,7 @@ class BrowserPool {
 
         try {
             const browser = await puppeteer.launch({
-                headless: "new", // Run in headless mode
+                headless: "new",
                 defaultViewport: null, // Open with full window size
                 args: [
                     "--start-maximized", // Maximize window

@@ -1,12 +1,14 @@
 const BrowserPool = require('../../services/BrowserPool');
 const logger = require('../../utils/logger');
 const zeptoScraper = require('../../zepto/categoryScraper');
+const instamartScraper = require('../../instamart/categoryScraper');
 let blinkitScraper;
 try { blinkitScraper = require('../../blinkit/categoryScraper'); } catch (e) { }
 
 const scrapers = {
     zepto: zeptoScraper,
-    blinkit: blinkitScraper
+    blinkit: blinkitScraper,
+    instamart: instamartScraper
 };
 
 const CategoryExcelWriter = require('../../excelWriter');
