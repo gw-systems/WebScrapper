@@ -1,0 +1,112 @@
+Request URL
+https://www.swiggy.com/api/instamart/category-listing/v2?categoryName=Fresh%20Fruits&taxonomyType=Speciality%20taxonomy%201&offset=0&storeId=1135722&primaryStoreId=1135722&secondaryStoreId=1396282
+Request Method
+GET
+Status Code
+200 OK
+Remote Address
+18.66.41.67:443
+Referrer Policy
+strict-origin-when-cross-origin
+content-encoding
+br
+content-type
+application/json; charset=utf-8
+date
+Fri, 06 Feb 2026 07:17:31 GMT
+etag
+W/"21575-caS3zjjmfBdMNnhnPLssmJpw5vo"
+referrer-policy
+strict-origin-when-cross-origin
+set-cookie
+deviceId=s%3Afeb4ad36-f36b-464e-9ccc-524a2ca3e0ee.FJ0SMR0UWzbbjI9MCWXifnEfqe7C%2FPEhZvMvqBwgncU; Max-Age=2592000; Path=/; Expires=Sun, 08 Mar 2026 07:17:31 GMT; HttpOnly
+set-cookie
+tid=s%3A2e7b7973-6e5f-4fd7-9d2a-0eeaba1d5c1f.VmEck2cMNlBCg1HkaU9SXYhanI%2BpqgSv1013azVOWMk; Max-Age=2592000; Path=/; Expires=Sun, 08 Mar 2026 07:17:31 GMT; HttpOnly; Secure
+set-cookie
+sid=s%3Apjob6f6b-e9eb-4161-99d0-a740c92007fe.sSu2r7KvdOcflR7xQ7YGj7BXjKNVGYVe5LDsoR1HpK8; Max-Age=3600; Path=/; Expires=Fri, 06 Feb 2026 08:17:31 GMT; HttpOnly
+set-cookie
+versionCode=1200; Max-Age=2592000; Path=/; Expires=Sun, 08 Mar 2026 07:17:31 GMT; HttpOnly
+set-cookie
+versionCode=1200; Max-Age=2592000; Path=/; Expires=Sun, 08 Mar 2026 07:17:31 GMT; HttpOnly
+set-cookie
+platform=web; Max-Age=2592000; Path=/; Expires=Sun, 08 Mar 2026 07:17:31 GMT; HttpOnly
+set-cookie
+subplatform=mweb; Max-Age=2592000; Path=/; Expires=Sun, 08 Mar 2026 07:17:31 GMT; HttpOnly
+set-cookie
+statusBarHeight=0; Max-Age=2592000; Path=/; Expires=Sun, 08 Mar 2026 07:17:31 GMT; HttpOnly
+set-cookie
+bottomOffset=0; Max-Age=2592000; Path=/; Expires=Sun, 08 Mar 2026 07:17:31 GMT; HttpOnly
+set-cookie
+hideBackButton=false; Max-Age=0; Path=/; Expires=Fri, 06 Feb 2026 07:17:31 GMT; HttpOnly
+set-cookie
+genieTrackOn=false; Max-Age=2592000; Path=/; Expires=Sun, 08 Mar 2026 07:17:31 GMT; HttpOnly
+set-cookie
+ally-on=false; Path=/; HttpOnly
+set-cookie
+isNative=false; Max-Age=2592000; Path=/; Expires=Sun, 08 Mar 2026 07:17:31 GMT; HttpOnly
+set-cookie
+strId=; Path=/; HttpOnly
+set-cookie
+openIMHP=false; Max-Age=2592000; Path=/; Expires=Sun, 08 Mar 2026 07:17:31 GMT; HttpOnly
+strict-transport-security
+max-age=31536000
+vary
+Accept-Encoding
+via
+1.1 32e3c20c0b689eece2610615ae685840.cloudfront.net (CloudFront)
+x-amz-cf-id
+QsOpMjv0JjSVjFr6aiREyCMRmb3pv1Ft7OhwcYszsauZVwwqZDEVng==
+x-amz-cf-pop
+BOM78-P1
+x-cache
+Miss from cloudfront
+x-content-type-options
+nosniff
+x-data-origin
+instamart_cluster/dash-front-2
+x-envoy-upstream-service-time
+442
+x-frame-options
+sameorigin
+x-xss-protection
+1; mode=block
+:authority
+www.swiggy.com
+:method
+GET
+:path
+/api/instamart/category-listing/v2?categoryName=Fresh%20Fruits&taxonomyType=Speciality%20taxonomy%201&offset=0&storeId=1135722&primaryStoreId=1135722&secondaryStoreId=1396282
+:scheme
+https
+accept
+*/*
+accept-encoding
+gzip, deflate, br, zstd
+accept-language
+en-US,en;q=0.9
+content-type
+application/json
+cookie
+deviceId=s%3Afeb4ad36-f36b-464e-9ccc-524a2ca3e0ee.FJ0SMR0UWzbbjI9MCWXifnEfqe7C%2FPEhZvMvqBwgncU; tid=s%3A2e7b7973-6e5f-4fd7-9d2a-0eeaba1d5c1f.VmEck2cMNlBCg1HkaU9SXYhanI%2BpqgSv1013azVOWMk; sid=s%3Apjob6f6b-e9eb-4161-99d0-a740c92007fe.sSu2r7KvdOcflR7xQ7YGj7BXjKNVGYVe5LDsoR1HpK8; versionCode=1200; platform=web; statusBarHeight=0; bottomOffset=0; genieTrackOn=false; ally-on=false; isNative=false; strId=; openIMHP=false; _gcl_au=1.1.1808252201.1770361243; _fbp=fb.1.1770361244732.276611643277292267; moe_uuid=13723e28-32ef-47e4-ada7-7f18e758cdf1; lat=s%3A18.9690247.kEUzj0AVvWevFJbyZs1Zl2ri9vlpqA0dsnX8wJnWjVY; lng=s%3A72.8205292.FJoY%2BM0uCPUiJcqQv%2BZKQnj7tTdXeZ3B7h9EMRx%2FRC4; address=s%3AMumbai%20Central%2C%20Mumbai%2C%20Maharashtra%2C%20India.5aM3sL01qiU1hPKBaLGOEU%2FqVKC7PGorOKXVq3tmOXo; addressId=s%3A.4Wx2Am9WLolnmzVcU32g6YaFDw0QbIBFRj2nkO7P25s; LocSrc=s%3AswgyUL.Dzm1rLPIhJmB3Tl2Xs6141hVZS0ofGP7LGmLXgQOA7Y; isImBottomBarXpEnabled=s%3Atrue.e48T%2B1OIqhnOplwfDLfBpm6ciWJemq9CxKQOhhXd4VA; __SW=Tt6ZWE5-vYWsYeX4UMeZiz0S8fmPeSA_; application_name=; category=; x-channel=; x-theme=; _guest_tid=2deb4a9c-6e1f-4c15-870f-f6ff9754fdd3; _device_id=916bb7a0-6537-a029-c810-02878c5a0728; _swuid=916bb7a0-6537-a029-c810-02878c5a0728; _sid=pjob3655-da4a-409c-b01d-979fd023e509; AMP_TOKEN=%24NOT_FOUND; _gid=GA1.2.1718871374.1770361569; _ga_X3K3CELKLV=GS2.1.s1770361568$o1$g0$t1770361572$j56$l0$h0; userLocation=%7B%22address%22%3A%22Mumbai%20Central%2C%20Mumbai%2C%20Maharashtra%2C%20India%22%2C%22lat%22%3A18.9690247%2C%22lng%22%3A72.8205292%2C%22id%22%3A%22%22%2C%22annotation%22%3A%22%22%2C%22name%22%3A%22%22%7D; webBottomBarHeight=0; _ga=GA1.1.1918871788.1770361244; subplatform=mweb; aws-waf-token=d6aac7aa-5d31-423b-ae61-ad414c5382d2:BQoAaPAytwA1AAAA:TTVaJtbsiztALbzS/UfYWIK/FwyUUbM57nKSzSKDYyNV+jaIJljr1mQK4eOUk9K36ai5BiP0WM2a/faBV5t5SyDhgWbGauq0oMQAcfkuurSxVVhiiuCZ04vh84Z9BaMl8/nFju7EgHBz2FesVLYalFIY3fct7FJxuLtiosXQ1szv1yuQ/tMUvcTaTSv5BYVyehLGyoyZdIUs3kFA5drvv3OmiJa3AKInT/tDoU9ZKtTFq/MggWi7; _ga_8N8XRG907L=GS2.1.s1770361243$o1$g1$t1770362251$j42$l0$h0; _ga_VEG1HFE5VZ=GS2.1.s1770361244$o1$g1$t1770362251$j42$l0$h0; _ga_0XZC5MS97H=GS2.1.s1770361244$o1$g1$t1770362251$j42$l0$h0
+matcher
+gbeae8ee7ad99c8aega9b77
+priority
+u=1, i
+referer
+https://www.swiggy.com/instamart/category-listing?categoryName=Fresh%20Fruits&storeId=1135722&offset=0&filterName=&taxonomyType=Speciality%20taxonomy%201&showAgeConsent=false
+sec-ch-ua
+"Not(A:Brand";v="8", "Chromium";v="144", "Google Chrome";v="144"
+sec-ch-ua-mobile
+?1
+sec-ch-ua-platform
+"Android"
+sec-fetch-dest
+empty
+sec-fetch-mode
+cors
+sec-fetch-site
+same-origin
+user-agent
+Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Mobile Safari/537.36
+x-build-version
+2.320.0

@@ -51,11 +51,11 @@ class BrowserPool {
         // Real strict limiting would count total instances across all clients.
 
         logger.info(`Initializing new ${service} browser`, { clientId });
-
+        console.log(`[BrowserPool] Launching headful browser for ${service} with Chrome 124 UA...`);
         try {
             const browser = await puppeteer.launch({
-                headless: "new",
-                defaultViewport: null, // Open with full window size
+                headless: false, // Changed to headful so user can solve challenges if they appear
+                defaultViewport: { width: 1920, height: 1080 }, // Open with full window size
                 args: [
                     "--start-maximized", // Maximize window
                     "--no-sandbox",
@@ -63,7 +63,8 @@ class BrowserPool {
                     "--disable-dev-shm-usage",
                     "--disable-accelerated-2d-canvas",
                     "--disable-gpu",
-                    "--window-size=1920,1080"
+                    "--window-size=1920,1080",
+                    "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
                 ],
             });
 

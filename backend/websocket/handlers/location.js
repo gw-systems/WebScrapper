@@ -11,7 +11,7 @@ const instamartLocation = require('../../instamart/set-location');
 const locationHandlers = {
     zepto: zeptoLocation.setZeptoLocation,
     blinkit: blinkitLocation.setBlinkitLocation,
-    instamart: instamartLocation.setInstamartLocation
+    instamart: instamartLocation.setInstamartLocation // Browser-based mode like Blinkit/Zepto
 };
 
 // Supported services list
@@ -51,7 +51,7 @@ async function handleSetLocation(socket, cid, data) {
 
     for (const svc of targetServices) {
         try {
-            // Check if handler exists
+            // Standard handling for all services (Zepto, Blinkit, Instamart)
             const handler = locationHandlers[svc];
             if (!handler) {
                 logger.warn(`Location handler for ${svc} not implemented yet`, { cid });
@@ -59,20 +59,13 @@ async function handleSetLocation(socket, cid, data) {
                 continue;
             }
 
-            // High-level Retry Loop (specifically useful for Instamart flakiness)
-            const MAX_SERVICE_RETRIES = svc === 'instamart' ? 2 : 1;
+            // High-level Retry Loop (for non-Instamart services)
+            const MAX_SERVICE_RETRIES = 1;
             let serviceSuccess = false;
             let serviceResult = null;
             let serviceError = null;
 
             for (let attempt = 1; attempt <= MAX_SERVICE_RETRIES; attempt++) {
-                if (attempt > 1) {
-                    if (svc === 'instamart') logger.info(`Retrying ${svc} location setting (Attempt ${attempt}/${MAX_SERVICE_RETRIES})...`, { cid });
-                    // Force close previous browser instance to clean state
-                    await BrowserPool.closeBrowser(cid, svc);
-                    await new Promise(r => setTimeout(r, 2000));
-                }
-
                 try {
                     // Get browser page from pool
                     const { page } = await BrowserPool.getOrInitBrowser(cid, svc);

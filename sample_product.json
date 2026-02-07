@@ -1,0 +1,112 @@
+{
+  "skuId": "G8S0HQ705N",
+  "spinId": "1HWOLRUYB5",
+  "quantityDescription": "3 Pieces",
+  "displayName": "Mandarin Orange (Kittale Hannu)",
+  "brandName": "Fruits and Vegetables",
+  "imageIds": [
+    "NI_CATALOG/IMAGES/CIW/2026/1/14/17d48a19-e807-49cf-a205-e31f2512decf_6483_1.png",
+    "NI_CATALOG/IMAGES/CIW/2025/8/11/f8b1ab11-fc97-4fd4-8db8-3511f95fd323_6483_2.png",
+    "NI_CATALOG/IMAGES/CIW/2025/8/11/308e6181-c3fd-4374-b0bf-b23c756dc71c_6483_3.png",
+    "NI_CATALOG/IMAGES/CIW/2025/8/11/d388e75a-18bc-4a7f-946f-9cb2e8efec7d_6483_4.png"
+  ],
+  "listingVariant": true,
+  "superSaver": false,
+  "price": {
+    "mrp": {
+      "currencyCode": "INR",
+      "units": "119",
+      "nanos": 0
+    },
+    "offerPrice": {
+      "currencyCode": "INR",
+      "units": "95",
+      "nanos": 0
+    },
+    "unitLevelPrice": "",
+    "discountValue": {
+      "currencyCode": "INR",
+      "units": "24",
+      "nanos": 0
+    },
+    "offerApplied": {
+      "listingDescription": "20% OFF",
+      "superOffer": false,
+      "movThreshold": 0,
+      "offerHighlights": [
+        {
+          "text": "20% OFF",
+          "textColor": "colorPositive"
+        }
+      ]
+    },
+    "maxSaverPrice": null,
+    "flashSalePriceDetails": null
+  },
+  "category": "Exotic Fruits",
+  "dimensions": {
+    "lengthInCm": 7,
+    "widthInCm": 7,
+    "heightInCm": 7,
+    "volumeInCc": 343
+  },
+  "slotInfo": {
+    "isAvail": true,
+    "message": ""
+  },
+  "cartAllowedQuantity": {
+    "allowedQuantity": 5,
+    "quantityLimitBreachedMessage": "Only 5 unit(s) of this item can be added per order."
+  },
+  "inventory": {
+    "inStock": true
+  },
+  "weightInGrams": 3,
+  "volumetricWeight": 0,
+  "subCategoryType": "Mandarin",
+  "secondaryQuantityDescription": "240 - 300g",
+  "podId": "1402948",
+  "couponLessOffers": [],
+  "shortDescription": "Tender intensely sweet with mildly tangy, juicy flesh, thin zippery skin and floral aroma.",
+  "externalPharmacyItem": false,
+  "rxRequired": false,
+  "variationTags": [],
+  "medias": [
+    {
+      "id": "NI_CATALOG/IMAGES/CIW/2026/1/14/17d48a19-e807-49cf-a205-e31f2512decf_6483_1.png",
+      "thumbnailId": "",
+      "type": "MEDIA_TYPE_IMAGE",
+      "aspectRatio": null
+    },
+    {
+      "id": "NI_CATALOG/IMAGES/CIW/2025/8/11/f8b1ab11-fc97-4fd4-8db8-3511f95fd323_6483_2.png",
+      "thumbnailId": "",
+      "type": "MEDIA_TYPE_IMAGE",
+      "aspectRatio": null
+    },
+    {
+      "id": "NI_CATALOG/IMAGES/CIW/2025/8/11/308e6181-c3fd-4374-b0bf-b23c756dc71c_6483_3.png",
+      "thumbnailId": "",
+      "type": "MEDIA_TYPE_IMAGE",
+      "aspectRatio": null
+    },
+    {
+      "id": "NI_CATALOG/IMAGES/CIW/2025/8/11/d388e75a-18bc-4a7f-946f-9cb2e8efec7d_6483_4.png",
+      "thumbnailId": "",
+      "type": "MEDIA_TYPE_IMAGE",
+      "aspectRatio": null
+    }
+  ],
+  "attributeTags": [],
+  "rating": null,
+  "sla": null,
+  "vegClassifier": "VEG_CLASSIFIER_INVALID",
+  "emiInfo": null,
+  "aiAttributeTags": [],
+  "isWishlisted": false,
+  "offerCallouts": [],
+  "stealDealInfo": null,
+  "offerPanels": [],
+  "superCategory": "Fruits and Vegetables",
+  "loudCallout": null
+}

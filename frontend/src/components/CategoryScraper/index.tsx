@@ -12,9 +12,8 @@ export const CategoryScraper: React.FC = () => {
     const state = servicesState[activeService];
     const styles = getServiceStyles(serviceInfo.color);
 
-    if (activeService !== 'zepto' && activeService !== 'blinkit') {
-        return null; // Don't show anything for non-supported services
-    }
+    // Category scraping is supported for all services
+
 
     return (
         <div className={`mb-6 p-4 rounded-lg ${styles.container}`}>

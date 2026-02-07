@@ -1,0 +1,60 @@
+
+============================================================
+STARTING INSTAMART CATEGORY SCRAPER
+============================================================
+Store ID: 1402948
+Categories to scrape: 5
+============================================================
+
+============================================================
+Scraping Category: Fresh Fruits
+============================================================
+
+📡 Fetching: Fresh Fruits (offset: 0)
+   Status: 200
+✅ Found 33 products
+💾 Saved to: scraped_data\instamart\fresh_fruits.json
+
+============================================================
+Scraping Category: Fresh Vegetables
+============================================================
+
+📡 Fetching: Fresh Vegetables (offset: 0)
+   Status: 200
+✅ Found 30 products
+💾 Saved to: scraped_data\instamart\fresh_vegetables.json
+
+============================================================
+Scraping Category: Exotic Fruits
+============================================================
+
+📡 Fetching: Exotic Fruits (offset: 0)
+   Status: 200
+✅ Found 0 products
+
+============================================================
+Scraping Category: Leafy and Seasonings
+============================================================
+
+📡 Fetching: Leafy and Seasonings (offset: 0)
+   Status: 200
+✅ Found 0 products
+
+============================================================
+Scraping Category: Cuts and sprouts
+============================================================
+
+📡 Fetching: Cuts and sprouts (offset: 0)
+   Status: 200
+✅ Found 0 products
+
+💾 Summary saved to: scraped_data\instamart\scrape_summary.json
+
+============================================================
+SCRAPING COMPLETE
+============================================================
+✅ Categories scraped: 5
+📦 Total products: 63
+❌ Failed categories: 0
+============================================================
+

@@ -40,6 +40,9 @@ app.use(express.static(path.join(__dirname, '../public')));
 setupWebSocket(wss);
 
 // Routes
+const instamartRoutes = require('./routes/instamart');
+app.use('/api/instamart', instamartRoutes);
+
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
