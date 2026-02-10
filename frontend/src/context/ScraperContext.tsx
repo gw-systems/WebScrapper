@@ -47,7 +47,7 @@ const initialServiceState: ServiceState = {
 };
 
 export const ScraperProvider = ({ children }: { children: ReactNode }) => {
-    const [activeService, setActiveService] = useState<Service>('blinkit'); // Default
+    const [activeService, setActiveService] = useState<Service>('zepto'); // Default
     const [locationStatus, setLocationStatus] = useState({ isSet: false, isLoading: false, location: "" });
     const [loadingMessage, setLoadingMessage] = useState("");
 
