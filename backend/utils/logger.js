@@ -28,7 +28,7 @@ const consoleFormat = winston.format.combine(
 const logger = winston.createLogger({
     level: config.logging.level,
     format: logFormat,
-    defaultMeta: { service: 'webscrapper-backend' },
+    defaultMeta: { service: 'webscraper-backend' },
     transports: [
         // Error logs - 14 days retention
         new DailyRotateFile({

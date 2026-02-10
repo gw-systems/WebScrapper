@@ -16,8 +16,8 @@ if (missingVars.length > 0) {
 const dbConfig = {
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT) || 5432,
-    database: process.env.DB_NAME || 'webscrapper',
-    user: process.env.DB_USER || 'webscrapper_user',
+    database: process.env.DB_NAME || 'webscraper',
+    user: process.env.DB_USER || 'webscraper_user',
     password: process.env.DB_PASSWORD,
 
     // Connection pool settings

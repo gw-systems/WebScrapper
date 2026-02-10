@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type { Service, WebSocketMessage, LocationResult, CategoryScrapeResult } from '../types';
@@ -185,6 +185,18 @@ export const ScraperProvider = ({ children }: { children: ReactNode }) => {
         setLoadingMessage(`Setting location to ${location}...`);
         sendMessage({ action: "setLocation", location });
     };
+
+    // Cleanup blob URLs to prevent memory leaks
+    useEffect(() => {
+        // Revoke old blob URLs when they change
+        return () => {
+            Object.values(servicesState).forEach(serviceState => {
+                if (serviceState.excelFilePath && serviceState.excelFilePath.startsWith('blob:')) {
+                    URL.revokeObjectURL(serviceState.excelFilePath);
+                }
+            });
+        };
+    }, [servicesState]);
 
     return (
         <ScraperContext.Provider value={{

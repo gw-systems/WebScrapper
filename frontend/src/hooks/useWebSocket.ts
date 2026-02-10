@@ -118,6 +118,22 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     useEffect(() => {
         connect();
 
+        // Handle network online/offline events
+        const handleOnline = () => {
+            if (options.debug) console.log('Network online, attempting to reconnect...');
+            // Reset reconnect attempts when network comes back online
+            reconnectAttempts.current = 0;
+            connect();
+        };
+
+        const handleOffline = () => {
+            if (options.debug) console.log('Network offline');
+            setError("Network connection lost");
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
         return () => {
             if (ws.current) {
                 ws.current.close();
@@ -125,6 +141,8 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
             if (reconnectTimeout.current) {
                 clearTimeout(reconnectTimeout.current);
             }
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
         };
     }, [connect]);
 

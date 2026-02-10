@@ -12,7 +12,7 @@ docker-compose up -d postgres
 docker ps
 
 # Access PostgreSQL shell
-docker exec -it webscrapper-postgres psql -U webscrapper_user -d webscrapper
+docker exec -it webscraper-postgres psql -U webscraper_user -d webscraper
 ```
 
 The Docker setup automatically:
@@ -39,19 +39,19 @@ Download from https://www.postgresql.org/download/windows/
 # Create database and user
 psql -U postgres
 
-postgres=# CREATE DATABASE webscrapper;
-postgres=# CREATE USER webscrapper_user WITH ENCRYPTED PASSWORD 'dev_password_123';
-postgres=# GRANT ALL PRIVILEGES ON DATABASE webscrapper TO webscrapper_user;
+postgres=# CREATE DATABASE webscraper;
+postgres=# CREATE USER webscraper_user WITH ENCRYPTED PASSWORD 'dev_password_123';
+postgres=# GRANT ALL PRIVILEGES ON DATABASE webscraper TO webscraper_user;
 postgres=# \q
 
 # Run migrations
-psql -U webscrapper_user -d webscrapper -f database/migrations/001_initial_schema.sql
+psql -U webscraper_user -d webscraper -f database/migrations/001_initial_schema.sql
 
 # Seed development data
-psql -U webscrapper_user -d webscrapper -f database/seeds/dev_api_keys.sql
+psql -U webscraper_user -d webscraper -f database/seeds/dev_api_keys.sql
 
 # Verify setup
-psql -U webscrapper_user -d webscrapper -c "SELECT * FROM api_keys;"
+psql -U webscraper_user -d webscraper -c "SELECT * FROM api_keys;"
 ```
 
 ## Database Configuration
@@ -60,11 +60,11 @@ Create `backend/.env` file:
 
 ```env
 # PostgreSQL Configuration
-DATABASE_URL=postgresql://webscrapper_user:dev_password_123@localhost:5432/webscrapper
+DATABASE_URL=postgresql://webscraper_user:dev_password_123@localhost:5432/webscraper
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=webscrapper
-DB_USER=webscrapper_user
+DB_NAME=webscraper
+DB_USER=webscraper_user
 DB_PASSWORD=dev_password_123
 DB_POOL_MIN=2
 DB_POOL_MAX=10
@@ -128,7 +128,7 @@ createdb -U postgres webscrapper
 
 ```powershell
 # Docker:
-docker logs webscrapper-postgres
+docker logs webscraper-postgres
 
 # Local:
 # Check logs in PostgreSQL data directory

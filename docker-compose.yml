@@ -1,11 +1,11 @@
 services:
   postgres:
     image: postgres:14-alpine
-    container_name: webscrapper-postgres
+    container_name: webscraper-postgres
     environment:
-      POSTGRES_USER: webscrapper_user
+      POSTGRES_USER: webscraper_user
       POSTGRES_PASSWORD: dev_password_123
-      POSTGRES_DB: webscrapper
+      POSTGRES_DB: webscraper
     ports:
       - "5432:5432"
     volumes:
@@ -13,20 +13,20 @@ services:
       - ./database/migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_schema.sql
       - ./database/seeds/dev_api_keys.sql:/docker-entrypoint-initdb.d/002_seeds.sql
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U webscrapper_user -d webscrapper" ]
+      test: [ "CMD-SHELL", "pg_isready -U webscraper_user -d webscraper" ]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
     networks:
-      - webscrapper-network
+      - webscraper-network
 
   # Optional: pgAdmin for database management
   pgadmin:
     image: dpage/pgadmin4:latest
-    container_name: webscrapper-pgadmin
+    container_name: webscraper-pgadmin
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@webscrapper.local
+      PGADMIN_DEFAULT_EMAIL: admin@webscraper.local
       PGADMIN_DEFAULT_PASSWORD: admin
       PGADMIN_CONFIG_SERVER_MODE: 'False'
     ports:
@@ -36,10 +36,10 @@ services:
     depends_on:
       - postgres
     networks:
-      - webscrapper-network
+      - webscraper-network
 
 networks:
-  webscrapper-network:
+  webscraper-network:
     driver: bridge
 
 volumes:

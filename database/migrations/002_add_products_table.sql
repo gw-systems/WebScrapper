@@ -1,5 +1,5 @@
 -- Migration: Add Products Table for Instamart Scraped Data
--- Run: psql -U your_user -d webscrapper -f database/migrations/002_add_products_table.sql
+-- Run: psql -U your_user -d webscraper -f database/migrations/002_add_products_table.sql
 
 -- Products table to store scraped product data
 CREATE TABLE IF NOT EXISTS products (

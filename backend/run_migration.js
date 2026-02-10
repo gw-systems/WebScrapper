@@ -6,8 +6,8 @@ const path = require('path');
 const pool = new Pool({
     host: 'localhost',
     port: 5432,
-    database: 'webscrapper',
-    user: 'webscrapper_user',
+    database: 'webscraper',
+    user: 'webscraper_user',
     password: 'dev_password_123'
 });
 

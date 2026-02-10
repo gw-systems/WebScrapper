@@ -1,4 +1,4 @@
--- WebScrapper Database Schema
+-- WebScraper Database Schema
 -- PostgreSQL 14+
 
 -- API Keys table for authentication
