@@ -6,7 +6,7 @@ import { getServiceStyles } from '../utils/styles';
 
 export const ServiceTabs: React.FC = () => {
     const { activeService, setActiveService } = useScraper();
-    const services: Service[] = ["zepto", "blinkit", "instamart"];
+    const services: Service[] = ["zepto", "blinkit"];
 
     return (
         <div className="mb-6 border-b border-gray-200">

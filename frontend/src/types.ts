@@ -1,9 +1,9 @@
-export type Service = 'zepto' | 'blinkit' | 'instamart';
+export type Service = 'zepto' | 'blinkit';
 
 export interface WebSocketMessage {
     action: string;
     service?: Service;
-    status?: 'loading' | 'completed' | 'error' | 'success' | 'info' | 'skipped';
+    status?: 'loading' | 'completed' | 'error' | 'success' | 'info' | 'skipped' | 'progress';
     message?: string;
     step?: string;
     data?: any;

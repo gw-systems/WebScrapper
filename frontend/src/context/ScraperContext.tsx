@@ -53,8 +53,7 @@ export const ScraperProvider = ({ children }: { children: ReactNode }) => {
 
     const [servicesState, setServicesState] = useState<Record<Service, ServiceState>>({
         zepto: { ...initialServiceState },
-        blinkit: { ...initialServiceState },
-        instamart: { ...initialServiceState }
+        blinkit: { ...initialServiceState }
     });
 
     const updateServiceState = (service: Service, updates: Partial<ServiceState>) => {
@@ -86,11 +85,9 @@ export const ScraperProvider = ({ children }: { children: ReactNode }) => {
                     // Relaxed check: Only Zepto and Blinkit are required
                     const zeptoResult = results.find(r => r.service === 'zepto');
                     const blinkitResult = results.find(r => r.service === 'blinkit');
-                    const instamartResult = results.find(r => r.service === 'instamart');
 
                     const isZeptoSuccess = zeptoResult?.success ?? false;
                     const isBlinkitSuccess = blinkitResult?.success ?? false;
-                    const isInstamartSuccess = instamartResult?.success ?? false;
 
                     // Success if Zepto AND Blinkit worked
                     const isCriticalSuccess = isZeptoSuccess && isBlinkitSuccess;
@@ -98,18 +95,8 @@ export const ScraperProvider = ({ children }: { children: ReactNode }) => {
                     setLocationStatus((prev: any) => ({ ...prev, isSet: isCriticalSuccess, isLoading: false }));
 
                     if (isCriticalSuccess) {
-                        setLoadingMessage(""); // Clear loading message immediately
-                        // msg variable removed as it was unused in logic effectively involved in toast
-                        if (!isInstamartSuccess) {
-                            toast((_t) => (
-                                <span>
-                                    Location set for Zepto & Blinkit.<br />
-                                    <b>Instamart failed</b> (ignored).
-                                </span>
-                            ), { icon: '⚠️' });
-                        } else {
-                            toast.success("Location set for all services");
-                        }
+                        setLoadingMessage("");
+                        toast.success("Location set for all services");
                     } else {
                         // Critical failure
                         const failures = [];

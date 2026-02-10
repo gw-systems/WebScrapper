@@ -11,7 +11,7 @@ export const LocationSetup: React.FC = () => {
                 Set Location
             </h2>
             <p className="text-sm text-gray-600 mb-4">
-                This location will be used for all services (Zepto, Blinkit, Instamart)
+                This location will be used for all services (Zepto, Blinkit)
             </p>
             <div className="flex gap-2">
                 <Input

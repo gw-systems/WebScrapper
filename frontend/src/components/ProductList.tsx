@@ -4,7 +4,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ImageOff, Search, Tag, Clock } from "lucide-react";
 
-type Service = "blinkit" | "zepto" | "instamart";
+type Service = "blinkit" | "zepto";
 
 interface Product {
   id: string;
@@ -42,10 +42,6 @@ export function ProductList({
     zepto: {
       badge: "bg-purple-600",
       price: "text-purple-600",
-    },
-    instamart: {
-      badge: "bg-orange-600",
-      price: "text-orange-600",
     },
   };
 
@@ -91,9 +87,8 @@ export function ProductList({
         return (
           <Card
             key={product.id}
-            className={`overflow-hidden flex flex-col h-full group relative border-slate-200 shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg ${
-              isCompact ? "compact" : ""
-            }`}
+            className={`overflow-hidden flex flex-col h-full group relative border-slate-200 shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg ${isCompact ? "compact" : ""
+              }`}
           >
             {product.discount && (
               <Badge
@@ -117,9 +112,8 @@ export function ProductList({
                     <img
                       src={product.imageUrl}
                       alt={product.name}
-                      className={`w-full ${
-                        isCompact ? "h-24" : "h-32 sm:h-40"
-                      } object-contain mb-2 sm:mb-3 group-hover:opacity-80 transition-opacity duration-300`}
+                      className={`w-full ${isCompact ? "h-24" : "h-32 sm:h-40"
+                        } object-contain mb-2 sm:mb-3 group-hover:opacity-80 transition-opacity duration-300`}
                     />{" "}
                     <img
                       src={
@@ -128,9 +122,8 @@ export function ProductList({
                             serviceName ||
                             "blinkit") as Service
                         ]
-                          ? `/src/assets/${
-                              product.source || serviceName || "blinkit"
-                            }.png`
+                          ? `/src/assets/${product.source || serviceName || "blinkit"
+                          }.png`
                           : "/src/assets/blinkit.png"
                       }
                       alt={`${product.source || serviceName || "Service"} Logo`}
@@ -139,18 +132,16 @@ export function ProductList({
                   </>
                 ) : (
                   <div
-                    className={`flex items-center justify-center ${
-                      isCompact ? "h-24" : "h-32 sm:h-40"
-                    } bg-slate-100 rounded-lg mb-2 sm:mb-3`}
+                    className={`flex items-center justify-center ${isCompact ? "h-24" : "h-32 sm:h-40"
+                      } bg-slate-100 rounded-lg mb-2 sm:mb-3`}
                   >
                     <ImageOff className="h-10 w-10 text-slate-400" />
                   </div>
                 )}
               </div>
               <h3
-                className={`text-sm ${
-                  isCompact ? "" : "sm:text-base"
-                } font-semibold mb-1 group-hover:text-orange-600 transition-colors duration-300 truncate`}
+                className={`text-sm ${isCompact ? "" : "sm:text-base"
+                  } font-semibold mb-1 group-hover:text-orange-600 transition-colors duration-300 truncate`}
                 title={product.name}
               >
                 {product.name}
@@ -158,19 +149,18 @@ export function ProductList({
               <p className="text-xs sm:text-sm text-gray-600 mb-1">
                 {product.quantity}
               </p>
-                {product.deliveryTime && (
+              {product.deliveryTime && (
                 <div className="flex items-center text-xs text-green-700 mb-1.5">
                   <Clock className="h-3 w-3 mr-1" />
                   <span>{product.deliveryTime === "earliest" ? "10min" : product.deliveryTime}</span>
                 </div>
-                )}
+              )}
 
               <div className="mt-auto">
                 <div className="flex items-baseline gap-2">
                   <span
-                    className={`font-semibold ${serviceColor.price} ${
-                      isCompact ? "text-sm" : "text-base"
-                    }`}
+                    className={`font-semibold ${serviceColor.price} ${isCompact ? "text-sm" : "text-base"
+                      }`}
                   >
                     {product.price}
                   </span>

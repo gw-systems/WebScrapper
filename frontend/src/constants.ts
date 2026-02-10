@@ -8,6 +8,5 @@ export interface ServiceData {
 
 export const SERVICE_INFO: Record<Service, ServiceData> = {
     zepto: { logo: "/src/assets/zepto.png", color: "purple", name: "Zepto" },
-    blinkit: { logo: "/src/assets/blinkit.png", color: "green", name: "Blinkit" },
-    instamart: { logo: "/src/assets/instamart.png", color: "orange", name: "Instamart" }
+    blinkit: { logo: "/src/assets/blinkit.png", color: "green", name: "Blinkit" }
 };
