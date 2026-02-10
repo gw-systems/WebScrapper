@@ -1,6 +1,6 @@
-# QuickCom Scraper
+# Zepto-Blinkit Scraper
 
-QuickCom is a web application that helps you find and compare product prices across Blinkit, Zepto, and Swiggy Instamart. Instead of checking each app individually, you can search once and see all the options, saving you time and money when ordering groceries or essentials.
+Zepto-Blinkit Scraper is a web application that helps you find and compare product prices across Blinkit and Zepto. Instead of checking each app individually, you can search once and see all the options, saving you time and money when ordering groceries or essentials.
 
 ## Demo
 
@@ -23,7 +23,7 @@ QuickCom is a web application that helps you find and compare product prices acr
 ## Project Structure
 
 ```
-QuickCom/
+Zepto-Blinkit-Scraper/
 ├── backend/                   # Node.js backend server
 │   ├── blinkit/               # Blinkit-specific code
 │   │   ├── searchHelpers.js   # Search and data extraction
@@ -69,8 +69,8 @@ QuickCom/
 
 1. **Clone the Repository:**
 ```bash
-git clone https://github.com/yourusername/QuickCom.git
-cd QuickCom
+git clone https://github.com/yourusername/Zepto-Blinkit-Scraper.git
+cd Zepto-Blinkit-Scraper
 ```
 
 2. **Install Backend Dependencies:**

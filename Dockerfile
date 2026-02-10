@@ -1,4 +1,4 @@
-# Multi-stage build for QuickCom application
+# Multi-stage build for Zepto-Blinkit Scraper application
 
 # Stage 1: Build the frontend
 FROM node:20-alpine AS frontend-build
