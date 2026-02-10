@@ -1,15 +1,13 @@
 const BrowserPool = require('../../services/BrowserPool');
 const logger = require('../../utils/logger');
 const zeptoScraper = require('../../zepto/categoryScraper');
-const instamartScraper = require('../../instamart/categoryScraper'); // Switched from hybrid to new Puppeteer scraper
-const instamartHybridScraper = require('../../instamart/hybridScraper'); // Kept for legacy if needed, but primary is instamartScraper
+// Instamart moved to standalone scraper
 let blinkitScraper;
 try { blinkitScraper = require('../../blinkit/categoryScraper'); } catch (e) { }
 
 const scrapers = {
     zepto: zeptoScraper,
-    blinkit: blinkitScraper,
-    instamart: instamartScraper // Use new Puppeteer scraper
+    blinkit: blinkitScraper
 };
 
 const CategoryExcelWriter = require('../../excelWriter');
@@ -104,14 +102,8 @@ async function handleScrapeCategories(socket, cid, data) {
             const location = data.location || 'mumbai';
 
             // For Instamart, use new Puppeteer scraping
-            let products;
-            if (service === 'instamart') {
-                console.log('[DEBUG] Using Instamart Puppeteer scraper');
-                products = await scraper.scrapeCategoryProducts(page, category.url);
-            } else {
-                // Other services use browser-based scraping
-                products = await scrapeCategoryProducts(page, category.url, location);
-            }
+            // Other services use browser-based scraping
+            const products = await scrapeCategoryProducts(page, category.url, location);
             console.log(`[DEBUG] scrapeCategoryProducts returned ${products.length} products`);
 
             // If `products.realCategoryName` is set (Blinkit dynamic fix)

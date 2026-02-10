@@ -5,15 +5,14 @@ const zeptoSearch = require('../../zepto/searchHelpers');
 // Try to import others, fail gracefully if missing
 let blinkitSearch, instamartSearch;
 try { blinkitSearch = require('../../blinkit/searchHelpers'); } catch (e) { }
-try { instamartSearch = require('../../instamart/searchHelpers'); } catch (e) { }
+// Instamart moved to standalone scraper
 
 const searchHandlers = {
     zepto: zeptoSearch.scrapeProducts,
-    blinkit: blinkitSearch?.scrapeProducts,
-    instamart: instamartSearch?.scrapeProducts
+    blinkit: blinkitSearch?.scrapeProducts
 };
 
-const SERVICES = ['zepto', 'blinkit', 'instamart'];
+const SERVICES = ['zepto', 'blinkit'];
 
 async function handleSearch(socket, cid, data) {
     console.log(`[DEBUG] handleSearch triggered for cid=${cid}`);

@@ -13,7 +13,7 @@ const { handleSearch } = require('./handlers/search');
 const { handleScrapeCategories } = require('./handlers/category');
 
 // Supported services
-const SERVICES = ['blinkit', 'zepto', 'instamart'];
+const SERVICES = ['blinkit', 'zepto'];
 
 function setupWebSocket(wss) {
     wss.on('connection', async (socket, req) => {

@@ -5,17 +5,16 @@ const logger = require('../../utils/logger');
 // Import service helpers dynamically
 const zeptoLocation = require('../../zepto/set-location');
 const blinkitLocation = require('../../blinkit/set-location');
-const instamartLocation = require('../../instamart/set-location');
+// Instamart moved to standalone scraper
 
 // Map handlers
 const locationHandlers = {
     zepto: zeptoLocation.setZeptoLocation,
-    blinkit: blinkitLocation.setBlinkitLocation,
-    instamart: instamartLocation.setInstamartLocation // Restored optimized cookie-based method
+    blinkit: blinkitLocation.setBlinkitLocation
 };
 
 // Supported services list
-const SERVICES = ['zepto', 'blinkit', 'instamart'];
+const SERVICES = ['zepto', 'blinkit'];
 
 async function handleSetLocation(socket, cid, data) {
     const { location } = data;
