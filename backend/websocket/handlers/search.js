@@ -8,11 +8,10 @@ try { blinkitSearch = require('../../blinkit/searchHelpers'); } catch (e) { }
 // Instamart moved to standalone scraper
 
 const searchHandlers = {
-    zepto: zeptoSearch.scrapeProducts,
-    blinkit: blinkitSearch?.scrapeProducts
+    zepto: zeptoSearch.scrapeProducts
 };
 
-const SERVICES = ['zepto', 'blinkit'];
+const SERVICES = ['zepto'];
 
 async function handleSearch(socket, cid, data) {
     console.log(`[DEBUG] handleSearch triggered for cid=${cid}`);

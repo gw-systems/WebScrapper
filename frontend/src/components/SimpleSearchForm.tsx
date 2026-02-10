@@ -26,6 +26,8 @@ export function SimpleSearchForm() {
         }
     }
 
+    if (activeService === 'blinkit') return null;
+
     return (
         <Card className="mb-6 shadow-md">
             <CardHeader>

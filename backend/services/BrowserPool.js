@@ -54,8 +54,8 @@ class BrowserPool {
         console.log(`[BrowserPool] Launching headful browser for ${service} with Chrome 124 UA...`);
         try {
             const browser = await puppeteer.launch({
-                headless: true, // Changed to headless as requested
-                defaultViewport: { width: 1920, height: 1080 }, // Open with full window size
+                headless: true,
+                defaultViewport: { width: 1920, height: 1080 },
                 args: [
                     "--start-maximized", // Maximize window
                     "--no-sandbox",
