@@ -1,15 +1,15 @@
 const BrowserPool = require('../../services/BrowserPool');
 const logger = require('../../utils/logger');
 const zeptoScraper = require('../../zepto/categoryScraper');
-// const instamartScraper = require('../../instamart/categoryScraper'); // Archived
-const instamartHybridScraper = require('../../instamart/hybridScraper'); // Now the main scraper
+const instamartScraper = require('../../instamart/categoryScraper'); // Switched from hybrid to new Puppeteer scraper
+const instamartHybridScraper = require('../../instamart/hybridScraper'); // Kept for legacy if needed, but primary is instamartScraper
 let blinkitScraper;
 try { blinkitScraper = require('../../blinkit/categoryScraper'); } catch (e) { }
 
 const scrapers = {
     zepto: zeptoScraper,
     blinkit: blinkitScraper,
-    instamart: instamartHybridScraper // Use hybrid (Python) scraper
+    instamart: instamartScraper // Use new Puppeteer scraper
 };
 
 const CategoryExcelWriter = require('../../excelWriter');
@@ -103,12 +103,11 @@ async function handleScrapeCategories(socket, cid, data) {
             console.log('[DEBUG] Calling scrapeCategoryProducts');
             const location = data.location || 'mumbai';
 
-            // For Instamart, use Hybrid scraping (API -> Fallback to DOM)
+            // For Instamart, use new Puppeteer scraping
             let products;
             if (service === 'instamart') {
-                console.log('[DEBUG] Using Instamart Hybrid scraping (Auto Mode)');
-                // This auto-detects: tries API first, if it fails (or returns 0 products), it switches to DOM (page)
-                products = await instamartHybridScraper.scrapeCategoryProductsAuto(page, category.url, location);
+                console.log('[DEBUG] Using Instamart Puppeteer scraper');
+                products = await scraper.scrapeCategoryProducts(page, category.url);
             } else {
                 // Other services use browser-based scraping
                 products = await scrapeCategoryProducts(page, category.url, location);

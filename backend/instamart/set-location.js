@@ -154,7 +154,7 @@ async function setInstamartLocation(page, locationName, lat, lng) {
  * Only used if the optimized cookie method fails
  */
 async function setInstamartLocationLegacy(page, locationName) {
-  console.log("[Instamart] Using legacy UI-based method...");
+  console.log("[Instamart] Using robust UI-based method...");
 
   try {
     // Ensure we're on Instamart
@@ -165,61 +165,68 @@ async function setInstamartLocationLegacy(page, locationName) {
       });
     }
 
-    // Wait for page to stabilize
-    await new Promise(r => setTimeout(r, 2000));
+    // Handle "Something went wrong" or "Try Again"
+    const buttons = await page.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll('button, span, div'));
+      const retry = btns.find(b => b.innerText.toLowerCase().includes('try again') && b.offsetWidth > 0);
+      if (retry) { retry.click(); return true; }
+      return false;
+    });
+    if (buttons) await new Promise(r => setTimeout(r, 2000));
 
-    // Try to find and click location search input
-    const searchSelectors = [
-      '[data-testid="search-location"]',
-      '[data-testid="address-name"]',
-      'input[placeholder*="Search"]'
-    ];
+    // Check if "Share location" modal is already present
+    const modalInput = await page.evaluate(() => {
+      const input = document.querySelector('input[placeholder*="Search"], ._1wkJd');
+      if (input && input.closest('.zU41J, .sc-')) return true;
+      return false;
+    });
 
-    let searchInput = null;
-    for (const selector of searchSelectors) {
-      try {
-        const element = await page.$(selector);
-        if (element) {
-          await element.click();
-          searchInput = selector;
-          break;
+    if (!modalInput) {
+      // Trigger location modal
+      await page.evaluate(() => {
+        const selectors = ['[data-testid="address-bar"]', '[data-testid="address-line"]', '._3FN4I', '._3eFQ-'];
+        for (const s of selectors) {
+          const el = document.querySelector(s);
+          if (el) { el.click(); return true; }
         }
-      } catch (e) {
-        continue;
-      }
+        const addLoc = Array.from(document.querySelectorAll('div, span')).find(e => e.innerText.includes('Add your location'));
+        if (addLoc) { addLoc.click(); return true; }
+        return false;
+      });
+      await new Promise(r => setTimeout(r, 2000));
     }
-
-    if (!searchInput) {
-      throw new Error("Could not find location search input");
-    }
-
-    await new Promise(r => setTimeout(r, 1500));
 
     // Type location
-    const inputSelector = 'input._1wkJd, input[placeholder*="Search"]';
-    await page.waitForSelector(inputSelector, { timeout: 5000 });
+    const inputSelector = 'input._1wkJd, input[placeholder*="Search"], input[placeholder*="area or address"]';
+    await page.waitForSelector(inputSelector, { timeout: 10000 });
+    await page.click(inputSelector, { clickCount: 3 }); // Clear existing
+    await page.keyboard.press('Backspace');
     await page.type(inputSelector, locationName, { delay: 100 });
 
     await new Promise(r => setTimeout(r, 2000));
 
     // Click first suggestion
-    await page.evaluate(() => {
-      const items = Array.from(document.querySelectorAll('div._11n32, div._2esgM'));
-      if (items.length > 0) {
-        items[0].click();
+    const clickedSuggestion = await page.evaluate(() => {
+      const items = Array.from(document.querySelectorAll('div._11n32, div._2esgM, [class*="suggestion"]'));
+      const best = items.find(i => i.offsetWidth > 0);
+      if (best) {
+        best.click();
         return true;
       }
       return false;
     });
 
+    if (!clickedSuggestion) throw new Error("Could not find location suggestion");
+
     await new Promise(r => setTimeout(r, 2000));
 
-    // Click confirm button
+    // Click confirm button if present
     await page.evaluate(() => {
-      const confirmBtn = document.querySelector('button.sc-iGgWBj, span.jvMXGN');
-      if (confirmBtn) {
-        confirmBtn.click();
-      }
+      const confirmBtn = Array.from(document.querySelectorAll('button, span')).find(el =>
+        (el.innerText.toLowerCase().includes('confirm') || el.innerText.toLowerCase().includes('set location')) &&
+        el.offsetWidth > 0
+      );
+      if (confirmBtn) confirmBtn.click();
     });
 
     await new Promise(r => setTimeout(r, 3000));
@@ -228,7 +235,7 @@ async function setInstamartLocationLegacy(page, locationName) {
     return location ? { location, storeId: null } : null;
 
   } catch (err) {
-    console.error("[Instamart] Legacy method also failed:", err.message);
+    console.error("[Instamart] Robust UI method failed:", err.message);
     return null;
   }
 }

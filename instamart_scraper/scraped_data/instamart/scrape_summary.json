@@ -1,10 +1,10 @@
 {
-  "scraped_at": "2026-02-07T17:18:20.133357",
-  "duration_seconds": 13.89,
+  "scraped_at": "2026-02-10T11:00:32.282490",
+  "duration_seconds": 1.92,
   "store_id": "1135722",
   "stats": {
     "categories_scraped": 1,
-    "total_products": 35,
+    "total_products": 32,
     "failed_categories": 0,
     "errors": []
   }

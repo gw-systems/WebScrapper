@@ -11,7 +11,7 @@ const instamartLocation = require('../../instamart/set-location');
 const locationHandlers = {
     zepto: zeptoLocation.setZeptoLocation,
     blinkit: blinkitLocation.setBlinkitLocation,
-    instamart: instamartLocation.setInstamartLocation // Browser-based mode like Blinkit/Zepto
+    instamart: instamartLocation.setInstamartLocation // Restored optimized cookie-based method
 };
 
 // Supported services list
