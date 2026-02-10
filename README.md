@@ -1,52 +1,34 @@
 # Zepto-Blinkit Scraper
 
-Zepto-Blinkit Scraper is a web application that helps you find and compare product prices across Blinkit and Zepto. Instead of checking each app individually, you can search once and see all the options, saving you time and money when ordering groceries or essentials.
-
-## Demo
-
-### Location Setting & Search Interface
-![Location and Search Interface](./screenshots/quickcom-search-interface.png)
-
-### Product Results Across Platforms
-![Product Results](./screenshots/quickcom-results.png)
+Zepto-Blinkit Scraper is a web application that helps you scrape product information across Blinkit and Zepto.
 
 ## Features
 
-- **Multi-platform Search**: Find products across multiple platforms with one search
-- **Location-based Results**: Set your location once to get accurate delivery options
-- **Real-time Comparison**: See prices and delivery times side by side
-- **Visual Indicators**: Easily spot discounts and best deals
-- **Responsive Design**: Works well on both desktop and mobile
-- **Live Updates**: Results appear as they're found thanks to WebSocket integration
-- **Complete Product Info**: See quantity, price, discounts, and delivery times
+- **Specialized Category Scraping**: High-performance scraping for all categories on Zepto and Blinkit.
+- **Location-based Results**: Set your location to get accurate price and delivery data.
+- **Excel Export**: Download complete category data as `.xlsx` files for easy analysis.
+- **Responsive Dashboard**: A clean, React-based UI for managing scraping tasks.
+- **Headless Mode**: Efficient backend operation using headless Puppeteer.
 
 ## Project Structure
 
 ```
 Zepto-Blinkit-Scraper/
 ├── backend/                   # Node.js backend server
-│   ├── blinkit/               # Blinkit-specific code
-│   │   ├── searchHelpers.js   # Search and data extraction
-│   │   └── set-location.js    # Location handling
-│   ├── zepto/                 # Zepto-specific code
-│   │   ├── searchHelpers.js   # Search and data extraction
-│   │   └── set-location.js    # Location handling
-│   ├── instamart/             # Swiggy Instamart-specific code
-│   │   ├── searchHelpers.js   # Search and data extraction
-│   │   └── set-location.js    # Location handling
-│   ├── server.js              # Main server file
-│   └── package.json           # Dependencies
-├── frontend/                  # React frontend
+│   ├── blinkit/               # Blinkit-specific scraping logic
+│   ├── zepto/                 # Zepto-specific scraping logic
+│   ├── services/              # Shared services (BrowserPool, SessionManager)
+│   ├── websocket/             # WebSocket handlers for real-time communication
+│   ├── server.js              # Main Express/WS server
+│   └── package.json           # Backend dependencies
+├── frontend/                  # React frontend (Vite + TypeScript)
 │   ├── src/
-│   │   ├── components/        # UI components
-│   │   │   ├── SearchForm.tsx # Search interface
-│   │   │   ├── ProductList.tsx # Product display
-│   │   │   └── ui/            # UI elements
-│   │   ├── assets/            # Images and icons
-│   │   ├── App.tsx            # Main app component
-│   │   └── main.tsx           # Entry point
-│   └── package.json           # Dependencies
-└── README.md                  # This documentation
+│   │   ├── components/        # UI components (Location, Categories, etc.)
+│   │   ├── context/           # Global state management
+│   │   ├── App.tsx            # Main application layout
+│   │   └── main.tsx           # React entry point
+│   └── package.json           # Frontend dependencies
+└── README.md                  # Project documentation
 ```
 
 ## Technology Stack
