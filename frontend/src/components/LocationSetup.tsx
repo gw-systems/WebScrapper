@@ -1,6 +1,7 @@
 import React from 'react';
 import { useScraper } from '../context/ScraperContext';
 import { Input } from './ui/input';
+import { Button } from './ui/button';
 
 export const LocationSetup: React.FC = () => {
     const { isConnected, locationStatus, setLocationStatus, handleSetLocation } = useScraper();
@@ -17,8 +18,8 @@ export const LocationSetup: React.FC = () => {
                 <Input
                     placeholder="Enter location (e.g., Mumbai, Delhi...)"
                     value={locationStatus.location}
-                    onChange={(e) => setLocationStatus({ ...locationStatus, location: e.target.value })}
-                    onKeyDown={(e) => {
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocationStatus({ ...locationStatus, location: e.target.value })}
+                    onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                         if (e.key === 'Enter' && locationStatus.location.trim()) {
                             handleSetLocation(locationStatus.location)
                         }
@@ -26,13 +27,13 @@ export const LocationSetup: React.FC = () => {
                     disabled={!isConnected || locationStatus.isLoading}
                     className="flex-1"
                 />
-                <button
+                <Button
                     onClick={() => handleSetLocation(locationStatus.location)}
                     disabled={!isConnected || locationStatus.isLoading || !locationStatus.location.trim()}
-                    className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    className="bg-orange-600 hover:bg-orange-700 text-white"
                 >
                     {locationStatus.isLoading ? "Setting..." : "Set Location"}
-                </button>
+                </Button>
             </div>
         </div>
     );

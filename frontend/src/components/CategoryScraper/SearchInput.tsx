@@ -3,6 +3,7 @@ import { useScraper } from '../../context/ScraperContext';
 import { Input } from '../ui/input';
 import { SERVICE_INFO } from '../../constants';
 import { getServiceStyles } from '../../utils/styles';
+import { Button } from '../ui/button';
 
 export const SearchInput: React.FC = () => {
     const { activeService, servicesState, updateServiceState, sendMessage, isConnected } = useScraper();
@@ -36,21 +37,21 @@ export const SearchInput: React.FC = () => {
                 <Input
                     placeholder="Search category (e.g., beverages, snacks, dairy...)"
                     value={state.categorySearchTerm}
-                    onChange={(e) => updateServiceState(activeService, { categorySearchTerm: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateServiceState(activeService, { categorySearchTerm: e.target.value })}
                     className={`flex-1 ${styles.input}`}
                     disabled={state.isScrapingCategories}
                 />
-                <button
+                <Button
                     onClick={() => {
                         if (state.categorySearchTerm.trim()) {
                             handleScrapeCategories(0, state.categorySearchTerm)
                         }
                     }}
                     disabled={state.isScrapingCategories || !isConnected || !state.categorySearchTerm.trim()}
-                    className={`px-4 py-2 text-white rounded-md transition-colors whitespace-nowrap disabled:bg-gray-400 disabled:cursor-not-allowed ${styles.button}`}
+                    className={`text-white transition-colors whitespace-nowrap ${styles.button}`}
                 >
                     {state.isScrapingCategories ? "Scraping..." : "🔍 Search & Scrape"}
-                </button>
+                </Button>
             </div>
 
             <div className="flex items-center gap-3">
@@ -59,13 +60,13 @@ export const SearchInput: React.FC = () => {
                 <div className={`flex-1 border-t ${styles.wrapper}`}></div>
             </div>
 
-            <button
+            <Button
                 onClick={() => handleScrapeCategories(0, "")}
                 disabled={state.isScrapingCategories || !isConnected}
-                className={`w-full px-4 py-2 text-white rounded-md transition-colors font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed ${styles.button}`}
+                className={`w-full text-white transition-colors font-semibold ${styles.button}`}
             >
                 {state.isScrapingCategories ? "Scraping..." : "📦 Scrape ALL Categories"}
-            </button>
+            </Button>
         </div>
     );
 };
