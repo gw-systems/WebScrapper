@@ -1,5 +1,8 @@
 const BrowserPool = require('../../services/BrowserPool');
 const logger = require('../../utils/logger');
+const config = require('../../config/environment');
+const { withTimeout, isTimeoutError } = require('../../utils/timeout');
+const MetricsService = require('../../services/MetricsService');
 const zeptoSearch = require('../../zepto/searchHelpers');
 
 // Try to import others, fail gracefully if missing
@@ -62,6 +65,11 @@ async function handleSearch(socket, cid, data) {
 
         try {
             console.log(`[DEBUG] Starting search for service: ${svc}`);
+
+            // Record metrics
+            MetricsService.recordScrapingRequest(svc, 'search');
+            const durationTimer = MetricsService.recordScrapingRequest(svc, 'search');
+
             const handler = searchHandlers[svc];
             if (!handler) {
                 console.log(`[DEBUG] No handler for service: ${svc}`);
@@ -69,19 +77,50 @@ async function handleSearch(socket, cid, data) {
                 return;
             }
 
-            console.log(`[DEBUG] Getting browser for ${svc}`);
-            const { page } = await BrowserPool.getOrInitBrowser(cid, svc);
-            console.log(`[DEBUG] Browser obtained for ${svc}, invoking handler`);
+            // Wrap search with timeout
+            await withTimeout(
+                (async () => {
+                    console.log(`[DEBUG] Getting browser for ${svc}`);
+                    const { page } = await BrowserPool.getOrInitBrowser(cid, svc);
+                    console.log(`[DEBUG] Browser obtained for ${svc}, invoking handler`);
 
-            const products = await handler(page, searchTerm);
-            console.log(`[DEBUG] Handler returned ${products?.length} products for ${svc}`);
+                    const products = await handler(page, searchTerm);
+                    console.log(`[DEBUG] Handler returned ${products?.length} products for ${svc}`);
 
-            sendUpdate(svc, 'completed', `Found ${products.length} products`, products || []);
+                    sendUpdate(svc, 'completed', `Found ${products.length} products`, products || []);
+
+                    // Record success metrics
+                    MetricsService.recordScrapingSuccess(svc, 'search', durationTimer);
+                })(),
+                config.timeouts.searchMs,
+                `Search on ${svc}`
+            );
 
         } catch (error) {
             console.error(`[DEBUG] Search failed for ${svc}:`, error);
-            logger.error(`Search failed for ${svc}`, { cid, error: error.message });
-            sendUpdate(svc, 'error', `Search failed: ${error.message}`);
+            logger.error(`Search failed for ${svc}`, { cid, error: error.message, errorCode: error.code });
+
+            let errorMessage = error.message;
+
+            // Handle specific error types
+            if (isTimeoutError(error)) {
+                errorMessage = `Search timed out after ${config.timeouts.searchMs / 1000} seconds`;
+                // Cleanup browser on timeout
+                try {
+                    await BrowserPool.closeBrowser(cid, svc);
+                } catch (cleanupErr) {
+                    logger.error('Error cleaning up browser after timeout', { cid, error: cleanupErr.message });
+                }
+            } else if (error.code === 'BROWSER_LIMIT_PER_USER' || error.code === 'BROWSER_LIMIT_GLOBAL') {
+                errorMessage = error.message;
+            }
+
+            // Record failure metrics
+            const failureReason = isTimeoutError(error) ? 'timeout' :
+                (error.code === 'BROWSER_LIMIT_PER_USER' || error.code === 'BROWSER_LIMIT_GLOBAL') ? 'browser_limit' : 'error';
+            MetricsService.recordScrapingFailure(svc, 'search', failureReason, durationTimer);
+
+            sendUpdate(svc, 'error', `Search failed: ${errorMessage}`);
         }
     }));
 

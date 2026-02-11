@@ -18,6 +18,35 @@ function validateEnv() {
     if (missing.length > 0) {
         throw new Error(`Missing required environment variables: ${missing.join(', ')}\nPlease create a .env file with these variables.`);
     }
+
+    // Validate secrets in production
+    if (process.env.NODE_ENV === 'production') {
+        const API_KEY_SECRET = process.env.API_KEY_SECRET;
+        const JWT_SECRET = process.env.JWT_SECRET;
+
+        if (!API_KEY_SECRET || !JWT_SECRET) {
+            throw new Error('API_KEY_SECRET and JWT_SECRET are required in production.\nRun: node scripts/generate-secrets.js');
+        }
+
+        // Check for default/weak values
+        const dangerousValues = [
+            'change-this-to-a-secure-random-string-min-32-chars',
+            'change-this-to-another-secure-random-string',
+            'GENERATE_THIS_SECRET_DO_NOT_USE_THIS_VALUE',
+            'test',
+            'dev',
+            'secret'
+        ];
+
+        if (dangerousValues.includes(API_KEY_SECRET) || dangerousValues.includes(JWT_SECRET)) {
+            throw new Error('SECURITY ERROR: Default secrets detected in production!\nGenerate secure secrets with: node scripts/generate-secrets.js');
+        }
+
+        // Minimum length check (64 chars = 32 bytes hex-encoded)
+        if (API_KEY_SECRET.length < 32 || JWT_SECRET.length < 32) {
+            throw new Error('SECURITY ERROR: Secrets must be at least 32 characters long.\nGenerate secure secrets with: node scripts/generate-secrets.js');
+        }
+    }
 }
 
 // Validate on import
@@ -47,8 +76,15 @@ const config = {
 
     // Browser Pool
     browserPool: {
-        maxBrowsers: parseInt(process.env.MAX_BROWSERS) || 10,
+        maxBrowsersTotal: parseInt(process.env.MAX_BROWSERS_TOTAL) || 10,
+        maxBrowsersPerUser: parseInt(process.env.MAX_BROWSERS_PER_USER) || 2,
         ttlMs: parseInt(process.env.BROWSER_TTL_MS) || 300000, // 5 minutes
+    },
+
+    // Timeouts
+    timeouts: {
+        scrapingMs: parseInt(process.env.SCRAPING_TIMEOUT_MS) || 300000, // 5 minutes
+        searchMs: parseInt(process.env.SEARCH_TIMEOUT_MS) || 120000, // 2 minutes
     },
 
     // Rate Limiting

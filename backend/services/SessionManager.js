@@ -52,6 +52,10 @@ class SessionManager {
         }
         return { blinkit: false, zepto: false, instamart: false };
     }
+
+    getActiveSessionCount() {
+        return this.localSessions.size;
+    }
 }
 
 module.exports = new SessionManager();

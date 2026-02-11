@@ -1,11 +1,12 @@
+require('dotenv').config();
 const { Pool } = require('pg');
 
 const pool = new Pool({
-  host: 'localhost',
-  port: 5432,
-  database: 'webscraper',
-  user: 'webscraper_user',
-  password: 'dev_password_123'
+  host: process.env.DB_HOST || 'localhost',
+  port: process.env.DB_PORT || 5432,
+  database: process.env.DB_NAME || 'webscraper',
+  user: process.env.DB_USER || 'webscraper_user',
+  password: process.env.DB_PASSWORD || 'dev_password_123'
 });
 
 async function createSchema() {

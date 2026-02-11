@@ -8,7 +8,7 @@ import { ServiceTabs } from "./components/ServiceTabs"
 import { CategoryScraper } from "./components/CategoryScraper"
 import { LoadingIndicator } from "@/components/loading-indicator"
 import { SimpleSearchForm } from "@/components/SimpleSearchForm"
-import * as XLSX from "xlsx"
+
 
 const ScraperContent = () => {
   const { locationStatus, loadingMessage, isConnected, activeService, servicesState } = useScraper();
@@ -47,25 +47,36 @@ const ScraperContent = () => {
                       Search Results: {currentService.products.length} products found
                     </h3>
                     <button
-                      onClick={() => {
-                        // Create worksheet and workbook from current products
-                        const worksheet = XLSX.utils.json_to_sheet(currentService.products);
-                        const workbook = XLSX.utils.book_new();
-                        XLSX.utils.book_append_sheet(workbook, worksheet, "Products");
+                      onClick={async () => {
+                        try {
+                          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                          const response = await fetch(`${apiUrl}/api/export/excel`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                              products: currentService.products,
+                              filename: `${activeService}_products`
+                            }),
+                          });
 
-                        // Use XLSX.write to get a buffer and then create a Blob
-                        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-                        const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                          if (!response.ok) throw new Error('Export failed');
 
-                        // Explicitly trigger download using a temporary link
-                        const url = URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.setAttribute('download', `${activeService}_products_${new Date().toISOString().slice(0, 10)}.xlsx`);
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        URL.revokeObjectURL(url);
+                          const blob = await response.blob();
+                          const url = window.URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `${activeService}_products_${new Date().toISOString().slice(0, 10)}.xlsx`;
+                          document.body.appendChild(a);
+                          a.click();
+                          window.URL.revokeObjectURL(url);
+                          document.body.removeChild(a);
+                        } catch (error) {
+                          console.error('Export error:', error);
+                          // toast.error('Failed to export Excel file'); // assuming toast is available or just log for now
+                          alert('Failed to export Excel file');
+                        }
                       }}
                       className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
                     >

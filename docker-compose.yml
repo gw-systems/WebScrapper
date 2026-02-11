@@ -1,15 +1,18 @@
+version: '3.8'
+
 services:
+  # PostgreSQL Database
   postgres:
     image: postgres:14-alpine
-    container_name: webscraper-postgres
+    container_name: webscraper-db
     environment:
       POSTGRES_USER: webscraper_user
-      POSTGRES_PASSWORD: dev_password_123
+      POSTGRES_PASSWORD: dev_password_change_in_production
       POSTGRES_DB: webscraper
     ports:
       - "5432:5432"
     volumes:
-      - ./postgres-data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
       - ./database/migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_schema.sql
       - ./database/seeds/dev_api_keys.sql:/docker-entrypoint-initdb.d/002_seeds.sql
     healthcheck:
@@ -18,6 +21,105 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    networks:
+      - webscraper-network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: webscraper-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 5000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: webscraper
+      DB_USER: webscraper_user
+      DB_PASSWORD: dev_password_change_in_production
+      API_KEY_SECRET: ${API_KEY_SECRET}
+      JWT_SECRET: ${JWT_SECRET}
+      MAX_BROWSERS_TOTAL: ${MAX_BROWSERS_TOTAL:-10}
+      MAX_BROWSERS_PER_USER: ${MAX_BROWSERS_PER_USER:-2}
+      SCRAPING_TIMEOUT_MS: ${SCRAPING_TIMEOUT_MS:-300000}
+      SEARCH_TIMEOUT_MS: ${SEARCH_TIMEOUT_MS:-120000}
+      FRONTEND_URL: http://localhost:3000
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount source code for hot reload in development
+      - ./backend:/app
+      - /app/node_modules
+      - backend_logs:/app/logs
+    command: npm run dev
+    healthcheck:
+      test: [ "CMD", "node", "-e", "require('http').get('http://localhost:5000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - webscraper-network
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: webscraper-frontend
+    environment:
+      VITE_API_URL: http://localhost:5000
+      VITE_WS_URL: ws://localhost:5000
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount source code for hot reload
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    command: npm run dev
+    networks:
+      - webscraper-network
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: webscraper-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    depends_on:
+      - backend
+    networks:
+      - webscraper-network
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: webscraper-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: ''
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana-dashboard.json:/var/lib/grafana/dashboards/webscraper.json
+    depends_on:
+      - prometheus
     networks:
       - webscraper-network
 
@@ -32,16 +134,24 @@ services:
     ports:
       - "5050:80"
     volumes:
-      - ./pgadmin-data:/var/lib/pgadmin
+      - pgadmin_data:/var/lib/pgadmin
     depends_on:
       - postgres
     networks:
       - webscraper-network
 
+volumes:
+  postgres_data:
+    driver: local
+  backend_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
 networks:
   webscraper-network:
     driver: bridge
-
-volumes:
-  postgres-data:
-  pgadmin-data:

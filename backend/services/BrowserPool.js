@@ -37,63 +37,131 @@ class BrowserPool {
 
         // Return existing if available and connected
         if (clientResources[service]) {
-            const { browser, page } = clientResources[service];
-            if (browser.isConnected()) {
-                clientResources[service].lastUsed = Date.now();
+            const resource = clientResources[service];
+
+            // If initialization is in progress, wait for it
+            if (resource.initializationPromise) {
+                logger.info(`Waiting for pending ${service} browser initialization`, { clientId });
+                return resource.initializationPromise;
+            }
+
+            const { browser, page } = resource;
+            if (browser && browser.isConnected()) {
+                resource.lastUsed = Date.now();
                 return { browser, page };
             }
             // If disconnected, clean up reference
             this.clearService(clientId, service);
         }
 
-        // Check pool limits (global or per user - for now just check memory implicitly by limiting max browsers if strictly needed, 
-        // but here we are basically limiting by active clients implicitly via server capacity)
-        // Real strict limiting would count total instances across all clients.
+        // Check browser pool limits before creating new browser
+        const currentUserBrowsers = Object.keys(clientResources).length;
+        const totalBrowsers = this.getTotalBrowserCount();
+
+        // Per-user limit check
+        if (currentUserBrowsers >= config.browserPool.maxBrowsersPerUser) {
+            const error = new Error(
+                `Browser limit reached: You have ${currentUserBrowsers} active browsers ` +
+                `(max ${config.browserPool.maxBrowsersPerUser} per user). ` +
+                `Please close an existing browser before opening a new one.`
+            );
+            error.code = 'BROWSER_LIMIT_PER_USER';
+            logger.warn('Per-user browser limit reached', {
+                clientId,
+                currentUserBrowsers,
+                maxPerUser: config.browserPool.maxBrowsersPerUser
+            });
+            throw error;
+        }
+
+        // Global limit check
+        if (totalBrowsers >= config.browserPool.maxBrowsersTotal) {
+            const error = new Error(
+                `Server browser limit reached: ${totalBrowsers} browsers active ` +
+                `(max ${config.browserPool.maxBrowsersTotal}). ` +
+                `Please try again in a few moments.`
+            );
+            error.code = 'BROWSER_LIMIT_GLOBAL';
+            logger.warn('Global browser limit reached', {
+                clientId,
+                totalBrowsers,
+                maxTotal: config.browserPool.maxBrowsersTotal
+            });
+            throw error;
+        }
+
 
         logger.info(`Initializing new ${service} browser`, { clientId });
         console.log(`[BrowserPool] Launching headful browser for ${service} with Chrome 124 UA...`);
-        try {
-            const browser = await puppeteer.launch({
-                headless: true,
-                defaultViewport: { width: 1920, height: 1080 },
-                args: [
-                    "--start-maximized", // Maximize window
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-accelerated-2d-canvas",
-                    "--disable-gpu",
-                    "--window-size=1920,1080",
-                    "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-                ],
-            });
 
-            const page = await browser.newPage();
+        // Record browser initialization start
+        const MetricsService = require('./MetricsService');
+        MetricsService.recordBrowserInit(service);
+        const initTimer = MetricsService.recordBrowserInit(service);
 
-            // Basic page resource optimization
-            await page.setRequestInterception(true);
-            page.on("request", (req) => {
-                const resourceType = req.resourceType();
-                if (["image", "font", "media"].includes(resourceType)) {
-                    req.abort();
-                } else {
-                    req.continue();
+        // Create initialization promise
+        const initPromise = (async () => {
+            try {
+                const browser = await puppeteer.launch({
+                    headless: true,
+                    defaultViewport: { width: 1920, height: 1080 },
+                    args: [
+                        "--start-maximized", // Maximize window
+                        "--no-sandbox",
+                        "--disable-setuid-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--disable-accelerated-2d-canvas",
+                        "--disable-gpu",
+                        "--window-size=1920,1080",
+                        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                    ],
+                });
+
+                const page = await browser.newPage();
+
+                // Basic page resource optimization
+                await page.setRequestInterception(true);
+                page.on("request", (req) => {
+                    const resourceType = req.resourceType();
+                    if (["image", "font", "media"].includes(resourceType)) {
+                        req.abort();
+                    } else {
+                        req.continue();
+                    }
+                });
+
+                // Update resource with actual browser instance
+                clientResources[service] = {
+                    browser,
+                    page,
+                    lastUsed: Date.now(),
+                    createdAt: Date.now(),
+                    initializationPromise: null // Clear promise
+                };
+
+                // Stop init timer and update browser pool metrics
+                initTimer();
+                const stats = this.getStats();
+                MetricsService.updateBrowserPoolMetrics(stats);
+
+                return { browser, page };
+            } catch (error) {
+                // Clean up placeholder if failed
+                if (clientResources[service] && clientResources[service].initializationPromise) {
+                    delete clientResources[service];
                 }
-            });
+                logger.error(`Failed to initialize browser for ${service}`, { clientId, error: error.message });
+                throw error;
+            }
+        })();
 
-            // Store in pool
-            clientResources[service] = {
-                browser,
-                page,
-                lastUsed: Date.now(),
-                createdAt: Date.now()
-            };
+        // Store promise to block other requests
+        clientResources[service] = {
+            initializationPromise: initPromise,
+            lastUsed: Date.now()
+        };
 
-            return { browser, page };
-        } catch (error) {
-            logger.error(`Failed to initialize browser for ${service}`, { clientId, error: error.message });
-            throw error;
-        }
+        return initPromise;
     }
 
     /**
@@ -142,6 +210,45 @@ class BrowserPool {
             this.browsers.delete(clientId);
             logger.info(`Cleaned up all resources for client`, { clientId });
         }
+    }
+
+    /**
+     * Get total browser count across all clients
+     * @returns {number}
+     */
+    getTotalBrowserCount() {
+        let count = 0;
+        for (const services of this.browsers.values()) {
+            count += Object.keys(services).length;
+        }
+        return count;
+    }
+
+    /**
+     * Get browser pool statistics
+     * @returns {Object}
+     */
+    getStats() {
+        const totalBrowsers = this.getTotalBrowserCount();
+        const activeClients = this.browsers.size;
+        const stats = {
+            totalBrowsers,
+            activeClients,
+            maxBrowsersTotal: config.browserPool.maxBrowsersTotal,
+            maxBrowsersPerUser: config.browserPool.maxBrowsersPerUser,
+            utilizationPercent: (totalBrowsers / config.browserPool.maxBrowsersTotal) * 100,
+            clients: []
+        };
+
+        for (const [clientId, services] of this.browsers.entries()) {
+            stats.clients.push({
+                clientId,
+                browserCount: Object.keys(services).length,
+                services: Object.keys(services)
+            });
+        }
+
+        return stats;
     }
 
     /**

@@ -3,12 +3,14 @@ const router = express.Router();
 const { pool } = require('../config/database');
 const { scrapeAndStore } = require('../scripts/scrapeAndStoreInstamart');
 const logger = require('../utils/logger');
+const { validateQuery, validateBody } = require('../middleware/validation');
 
 // GET /api/instamart/products
 // List products with filtering
-router.get('/products', async (req, res) => {
+router.get('/products', validateQuery('productsQuery'), async (req, res) => {
     try {
-        const { category, search, inStock, limit = 50, offset = 0 } = req.query;
+        // req.query is now validated and sanitized
+        const { category, search, inStock, limit, offset } = req.query;
 
         let query = `
       SELECT id, sku_id, name, brand, category, 
@@ -45,8 +47,8 @@ router.get('/products', async (req, res) => {
 
         const result = await pool.query(query, params);
 
-        // Get total count (approximation for pagination)
-        const countQuery = await pool.query('SELECT count(*) FROM products');
+        // Get estimated total count for performance (avoid slow COUNT(*))
+        const countQuery = await pool.query("SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'");
 
         res.json({
             success: true,
@@ -107,13 +109,10 @@ router.get('/jobs', async (req, res) => {
 
 // POST /api/instamart/scrape
 // Trigger a new scraping job
-router.post('/scrape', async (req, res) => {
+router.post('/scrape', validateBody('scrapeBody'), async (req, res) => {
     try {
+        // req.body is now validated and sanitized
         const { category } = req.body;
-
-        if (!category) {
-            return res.status(400).json({ success: false, error: 'Category is required' });
-        }
 
         // Trigger scraping
         logger.info(`Starting manual scrape for: ${category}`);

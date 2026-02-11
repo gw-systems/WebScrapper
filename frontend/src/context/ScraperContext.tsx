@@ -125,7 +125,12 @@ export const ScraperProvider = ({ children }: { children: ReactNode }) => {
                     });
                 } else if (data.status === "completed") {
                     let downloadUrl = null;
-                    if (data.fileData) {
+
+                    if (data.fileUrl) {
+                        // Use provided URL (append to backend base URL)
+                        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                        downloadUrl = `${apiUrl}${data.fileUrl}`;
+                    } else if (data.fileData) {
                         try {
                             // Convert Base64 to Blob
                             const byteCharacters = atob(data.fileData);

@@ -5,6 +5,7 @@ const logger = require('../utils/logger');
 const SessionManager = require('../services/SessionManager');
 const wsAuth = require('../middleware/wsAuth');
 const { checkRateLimit } = require('../middleware/rateLimiter');
+const MetricsService = require('../services/MetricsService');
 
 // Import handlers
 const { handleInitialize, handleCloseBrowser } = require('./handlers/initialization');
@@ -17,23 +18,25 @@ const SERVICES = ['blinkit', 'zepto'];
 
 function setupWebSocket(wss) {
     wss.on('connection', async (socket, req) => {
-        // 1. Authentication (Optional/Lazy or via query param)
-        // For Phase 3 we will enforce this strictly.
-        // For now, we check if key is provided, if so validate.
-        // If not, we might allow legacy or fail based on config.
-
-        // We can use the middleware helper
+        // 1. Authentication
         const authResult = await wsAuth.authenticate(req);
-        // If we want to enforce it now:
-        // if (!authResult.success) {
-        //   socket.close(1008, authResult.error);
-        //   return;
-        // }
-        // For now, we'll log it and proceed if dev/legacy
-        if (!authResult.success && process.env.NODE_ENV === 'production') {
-            logger.warn('WebSocket connection rejected', { ip: req.socket.remoteAddress, reason: authResult.error });
-            // socket.close(1008, 'Authentication failed');
-            // return;
+
+        // Enforce authentication in production
+        if (!authResult.success) {
+            if (process.env.NODE_ENV === 'production') {
+                logger.warn('WebSocket connection rejected - authentication failed', {
+                    ip: req.socket.remoteAddress,
+                    reason: authResult.error
+                });
+                MetricsService.recordWebSocketConnection(false);
+                socket.close(1008, authResult.error);
+                return;
+            } else {
+                // Log warning in development but allow connection
+                logger.debug('WebSocket connection without authentication (development mode)', {
+                    ip: req.socket.remoteAddress
+                });
+            }
         }
 
         // 2. Rate Limiting
@@ -41,6 +44,7 @@ function setupWebSocket(wss) {
         const allowed = await checkRateLimit(ip, 'connect');
         if (!allowed) {
             logger.warn('Connection rate limit exceeded', { ip });
+            MetricsService.recordWebSocketConnection(false);
             socket.close(1008, 'Rate limit exceeded');
             return;
         }
@@ -53,54 +57,81 @@ function setupWebSocket(wss) {
         await SessionManager.createSession(cid, apiKey, ip, userAgent);
         logger.info(`Client connected`, { cid, ip });
 
+        // Record successful connection
+        MetricsService.recordWebSocketConnection(true);
+        MetricsService.updateActiveSessions(SessionManager.getActiveSessionCount());
+
         // Send welcome message
         socket.send(JSON.stringify({ type: 'connected', cid }));
 
         // 4. Message Handling
         socket.on('message', async (msgRaw) => {
             try {
-                // Rate limit messages?
-                // const allowedMsg = await checkRateLimit(ip, 'message');
-                // if (!allowedMsg) return;
-
+                // Parse message
                 const data = JSON.parse(msgRaw);
-                const action = data.action;
+
+                // Validate message using validation middleware
+                const { validateWebSocketMessage } = require('../middleware/validation');
+                const validation = validateWebSocketMessage(data);
+
+                if (!validation.valid) {
+                    logger.warn('WebSocket message validation failed', {
+                        cid,
+                        error: validation.error,
+                        action: data.action
+                    });
+                    return sendError(socket, validation.error);
+                }
+
+                // Use validated data
+                const validatedData = validation.data;
+                const action = validatedData.action;
+
+                // Rate limit messages (optional but recommended)
+                const allowedMsg = await checkRateLimit(ip, 'message');
+                if (!allowedMsg) {
+                    logger.warn('Message rate limit exceeded', { cid, ip });
+                    sendError(socket, 'Rate limit exceeded');
+                    socket.close(1008, 'Rate limit exceeded');
+                    return;
+                }
 
                 logger.debug(`Received message`, { cid, action });
 
-                // Validate service if present
-                if (data.service && !SERVICES.includes(data.service)) {
-                    return sendError(socket, 'Invalid service specified');
-                }
-
-                // Route to handler
+                // Service validation already done by Joi schema
+                // Route to handler using validated data
                 switch (action) {
                     case 'initialize':
-                        await handleInitialize(socket, cid, data);
+                        await handleInitialize(socket, cid, validatedData);
                         break;
 
                     case 'setLocation':
-                        await handleSetLocation(socket, cid, data);
+                        await handleSetLocation(socket, cid, validatedData);
                         break;
 
                     case 'search':
-                        await handleSearch(socket, cid, data);
+                        await handleSearch(socket, cid, validatedData);
                         break;
 
                     case 'scrapeCategories':
-                        await handleScrapeCategories(socket, cid, data);
+                        await handleScrapeCategories(socket, cid, validatedData);
                         break;
 
                     case 'close-browser':
-                        await handleCloseBrowser(socket, cid, data);
+                        await handleCloseBrowser(socket, cid, validatedData);
                         break;
 
                     default:
+                        // This should never happen due to Joi validation
                         logger.warn(`Unknown action received`, { cid, action });
                         sendError(socket, `Unknown action: ${action}`);
                 }
 
             } catch (err) {
+                if (err instanceof SyntaxError) {
+                    logger.warn('Invalid JSON in WebSocket message', { cid });
+                    return sendError(socket, 'Invalid JSON format');
+                }
                 logger.error('Error processing message', { cid, error: err.message });
                 sendError(socket, 'Internal server error processing message');
             }
@@ -110,9 +141,16 @@ function setupWebSocket(wss) {
         socket.on('close', async () => {
             logger.info(`Client disconnected`, { cid });
             await SessionManager.closeSession(cid);
+
+            // Update session metrics
+            MetricsService.updateActiveSessions(SessionManager.getActiveSessionCount());
+
             // BrowserPool cleanup handled by SessionManager or explicit call
             const BrowserPool = require('../services/BrowserPool');
             await BrowserPool.cleanupClient(cid);
+
+            // Update browser pool metrics
+            MetricsService.updateBrowserPoolMetrics(BrowserPool.getStats());
         });
 
         socket.on('error', (err) => {
