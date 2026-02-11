@@ -70,19 +70,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://backend:5000 # Use service name for Docker internal networking
+        VITE_WS_URL: ws://backend:5000
     container_name: webscraper-frontend
-    environment:
-      VITE_API_URL: http://localhost:5000
-      VITE_WS_URL: ws://localhost:5000
     ports:
-      - "3000:3000"
-    volumes:
-      # Mount source code for hot reload
-      - ./frontend:/app
-      - /app/node_modules
+      - "3000:80" # Map to nginx port 80 (production build)
     depends_on:
       - backend
-    command: npm run dev
     networks:
       - webscraper-network
 

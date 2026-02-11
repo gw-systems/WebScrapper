@@ -19,13 +19,21 @@ RUN npm ci && npm cache clean --force
 # ============================================================================
 FROM base AS build
 
+# Accept build-time arguments for Vite environment variables
+ARG VITE_API_URL
+ARG VITE_WS_URL
+
+# Make them available as environment variables during build
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_WS_URL=$VITE_WS_URL
+
 # Copy node_modules from dependencies stage
 COPY --from=dependencies /app/node_modules ./node_modules
 
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application (now VITE_* vars are available)
 RUN npm run build
 
 # ============================================================================
