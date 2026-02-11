@@ -21,6 +21,14 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
     networks:
       - webscraper-network
 
@@ -62,6 +70,14 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     networks:
       - webscraper-network
 
@@ -78,6 +94,14 @@ services:
       - "3000:80" # Map to nginx port 80 (production build)
     depends_on:
       - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
     networks:
       - webscraper-network
 
@@ -97,6 +121,13 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
     depends_on:
       - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          memory: 128M
     networks:
       - webscraper-network
 
@@ -115,6 +146,13 @@ services:
       - ./config/grafana-dashboard.json:/var/lib/grafana/dashboards/webscraper.json
     depends_on:
       - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          memory: 128M
     networks:
       - webscraper-network
 

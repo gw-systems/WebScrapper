@@ -7,8 +7,10 @@ COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci
 COPY frontend/ ./
 # Set production environment variables for the frontend build
-ARG FRONTEND_URL=https://quickcom.onrender.com
-ENV VITE_WS_URL=wss://quickcom.onrender.com
+# These can be overridden during docker build with --build-arg
+ARG FRONTEND_URL=https://your-domain.com
+ARG VITE_WS_URL=wss://your-domain.com
+ENV VITE_WS_URL=${VITE_WS_URL}
 # Explicitly set base path for assets
 ENV BASE_URL=/
 RUN npm run build
