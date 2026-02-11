@@ -7,26 +7,38 @@ const crypto = require('crypto');
 
 class ApiKey {
     /**
+     * Hash an API key using SHA256
+     * @param {string} key - The raw API key
+     * @returns {string} - Hashed key (hex)
+     */
+    static hashKey(key) {
+        return crypto.createHash('sha256').update(key).digest('hex');
+    }
+
+    /**
      * Validate an API key
      * @param {string} key - The API key to validate
      * @returns {Promise<boolean>} - True if valid and active
      */
     static async validate(key) {
         try {
+            // Hash the incoming key before checking database
+            const hashedKey = this.hashKey(key);
+
             const result = await query(
                 'SELECT id, is_active FROM api_keys WHERE key = $1',
-                [key]
+                [hashedKey]
             );
 
             if (result.rows.length === 0) {
-                logger.warn('Invalid API key attempted', { key: key.substring(0, 10) + '...' });
+                logger.warn('Invalid API key attempted', { keyHash: hashedKey.substring(0, 10) + '...' });
                 return false;
             }
 
             const apiKey = result.rows[0];
 
             if (!apiKey.is_active) {
-                logger.warn('Inactive API key attempted', { key: key.substring(0, 10) + '...' });
+                logger.warn('Inactive API key attempted', { keyHash: hashedKey.substring(0, 10) + '...' });
                 return false;
             }
 
@@ -43,30 +55,35 @@ class ApiKey {
      */
     static async recordUsage(key) {
         try {
+            // Hash the key before updating
+            const hashedKey = this.hashKey(key);
+
             await query(
                 `UPDATE api_keys
          SET last_used_at = CURRENT_TIMESTAMP,
              usage_count = usage_count + 1
          WHERE key = $1`,
-                [key]
+                [hashedKey]
             );
 
-            logger.debug('API key usage recorded', { key: key.substring(0, 10) + '...' });
+            logger.debug('API key usage recorded', { keyHash: hashedKey.substring(0, 10) + '...' });
         } catch (error) {
             logger.error('Error recording API key usage', { error: error.message });
         }
     }
 
     /**
-     * Get API key by key string
-     * @param {string} key - The API key
+     * Get API key by raw key string (hashes it first)
+     * @param {string} key - The raw API key
      * @returns {Promise<Object|null>} - API key object or null
      */
     static async getByKey(key) {
         try {
+            const hashedKey = this.hashKey(key);
+
             const result = await query(
                 'SELECT * FROM api_keys WHERE key = $1',
-                [key]
+                [hashedKey]
             );
 
             return result.rows.length > 0 ? result.rows[0] : null;
@@ -83,19 +100,25 @@ class ApiKey {
      */
     static async create(name) {
         try {
-            // Generate secure random key
-            const key = crypto.randomBytes(32).toString('hex');
+            // Generate secure random key (64 hex chars = 32 bytes)
+            const rawKey = crypto.randomBytes(32).toString('hex');
+            const hashedKey = this.hashKey(rawKey);
 
             const result = await query(
                 `INSERT INTO api_keys (key, name, is_active)
          VALUES ($1, $2, true)
-         RETURNING *`,
-                [key, name]
+         RETURNING id, name, is_active, created_at`,
+                [hashedKey, name]
             );
 
             logger.info('API key created', { name, id: result.rows[0].id });
 
-            return result.rows[0];
+            // CRITICAL: Return the raw key to the user (only time they'll see it)
+            // The database stores only the hash
+            return {
+                ...result.rows[0],
+                key: rawKey  // Return raw key, not hash
+            };
         } catch (error) {
             logger.error('Error creating API key', { error: error.message, name });
             throw error;
@@ -109,13 +132,16 @@ class ApiKey {
      */
     static async revoke(key) {
         try {
+            // Hash the key before revoking
+            const hashedKey = this.hashKey(key);
+
             const result = await query(
                 'UPDATE api_keys SET is_active = false WHERE key = $1 RETURNING id',
-                [key]
+                [hashedKey]
             );
 
             if (result.rows.length > 0) {
-                logger.info('API key revoked', { key: key.substring(0, 10) + '...' });
+                logger.info('API key revoked', { keyHash: hashedKey.substring(0, 10) + '...' });
                 return true;
             }
 

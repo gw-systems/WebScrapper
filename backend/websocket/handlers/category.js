@@ -86,86 +86,97 @@ async function handleScrapeCategories(socket, cid, data) {
                     return;
                 }
 
+
                 console.log('[DEBUG] Initializing browser for category scraping');
-                const { page } = await BrowserPool.getOrInitBrowser(cid, service);
-                console.log('[DEBUG] Browser initialized');
 
-                const allProducts = [];
-                let processedConfig = 0;
+                // Create a unique context ID for this scraping session to prevent race conditions
+                const contextId = `${cid}_${service}_${Date.now()}`;
+                const { context, page } = await BrowserPool.getOrCreateContext(contextId, service);
+                console.log('[DEBUG] Isolated browser context created');
 
-                for (const category of targetCategories) {
-                    console.log(`[DEBUG] Processing category: ${category.name} (${processedConfig + 1}/${targetCategories.length})`);
-                    // Check if client disconnected? BrowserPool might handle closing, but we might keep running?
-                    // Ideally check session active.
+                try {
+
+                    const allProducts = [];
+                    let processedConfig = 0;
+
+                    for (const category of targetCategories) {
+                        console.log(`[DEBUG] Processing category: ${category.name} (${processedConfig + 1}/${targetCategories.length})`);
+                        // Check if client disconnected? BrowserPool might handle closing, but we might keep running?
+                        // Ideally check session active.
+
+                        socket.send(JSON.stringify({
+                            action: 'statusUpdate', step: 'scrapeCategories',
+                            status: 'progress',
+                            message: `Scraping ${category.name}...`,
+                            current: processedConfig + 1,
+                            total: targetCategories.length,
+                            categoryName: category.name,
+                            mainCategory: category.mainCategory
+                        }));
+
+                        console.log('[DEBUG] Calling scrapeCategoryProducts');
+                        const location = data.location || 'mumbai';
+
+                        // For Instamart, use new Puppeteer scraping
+                        // Other services use browser-based scraping
+                        const products = await scrapeCategoryProducts(page, category.url, location);
+                        console.log(`[DEBUG] scrapeCategoryProducts returned ${products.length} products`);
+
+                        // If `products.realCategoryName` is set (Blinkit dynamic fix)
+                        // update the category info if it looks like a placeholder
+                        if (products.realCategoryName) {
+                            if (category.mainCategory.startsWith('Cat-') && !category.mainCategory.includes(' > ')) {
+                                category.mainCategory = products.realCategoryName;
+                                category.name = `${products.realCategoryName} > ${category.subCategory}`; // Best effort update
+                            }
+                        }
+
+                        // Add category info to products
+                        const productsWithCat = products.map(p => ({
+                            ...p,
+                            category: products.realCategoryName || category.mainCategory, // Prefer dynamic name
+                            subCategory: category.subCategory
+                        }));
+
+                        allProducts.push(...productsWithCat);
+                        processedConfig++;
+
+                        // Optional: Send intermediate results?
+                        // socket.send(...)
+                    }
+
+                    console.log(`[DEBUG] Scraping finished. Generating Excel for ${allProducts.length} products`);
+
+                    // Generate Excel
+                    const writer = new CategoryExcelWriter();
+                    const buffer = await writer.generateExcel(allProducts);
+
+                    // Generate filename: zepto_category_(term)_(date).xlsx
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    const searchTerm = data.categoryFilter ? data.categoryFilter.trim().replace(/\s+/g, '_') : 'categories';
+                    const fileName = `${service}_category_${searchTerm}_${timestamp}.xlsx`;
+
+                    // Convert buffer to base64
+                    const base64Data = buffer.toString('base64');
+                    console.log(`[DEBUG] Generated Excel base64 data (${base64Data.length} bytes)`);
 
                     socket.send(JSON.stringify({
                         action: 'statusUpdate', step: 'scrapeCategories',
-                        status: 'progress',
-                        message: `Scraping ${category.name}...`,
-                        current: processedConfig + 1,
-                        total: targetCategories.length,
-                        categoryName: category.name,
-                        mainCategory: category.mainCategory
+                        status: 'completed',
+                        message: 'Scraping completed',
+                        fileData: base64Data, // Send data directly
+                        fileName: fileName,
+                        totalProducts: allProducts.length
                     }));
+                    console.log('[DEBUG] Sent completion message with file data');
 
-                    console.log('[DEBUG] Calling scrapeCategoryProducts');
-                    const location = data.location || 'mumbai';
-
-                    // For Instamart, use new Puppeteer scraping
-                    // Other services use browser-based scraping
-                    const products = await scrapeCategoryProducts(page, category.url, location);
-                    console.log(`[DEBUG] scrapeCategoryProducts returned ${products.length} products`);
-
-                    // If `products.realCategoryName` is set (Blinkit dynamic fix)
-                    // update the category info if it looks like a placeholder
-                    if (products.realCategoryName) {
-                        if (category.mainCategory.startsWith('Cat-') && !category.mainCategory.includes(' > ')) {
-                            category.mainCategory = products.realCategoryName;
-                            category.name = `${products.realCategoryName} > ${category.subCategory}`; // Best effort update
-                        }
-                    }
-
-                    // Add category info to products
-                    const productsWithCat = products.map(p => ({
-                        ...p,
-                        category: products.realCategoryName || category.mainCategory, // Prefer dynamic name
-                        subCategory: category.subCategory
-                    }));
-
-                    allProducts.push(...productsWithCat);
-                    processedConfig++;
-
-                    // Optional: Send intermediate results?
-                    // socket.send(...)
+                    // Record success metrics
+                    MetricsService.recordScrapingSuccess(service, 'category', durationTimer);
+                } finally {
+                    // CRITICAL: Always close the context to prevent race conditions and memory leaks
+                    console.log('[DEBUG] Cleaning up browser context');
+                    await BrowserPool.closeContext(contextId);
                 }
-
-                console.log(`[DEBUG] Scraping finished. Generating Excel for ${allProducts.length} products`);
-
-                // Generate Excel
-                const writer = new CategoryExcelWriter();
-                const buffer = await writer.generateExcel(allProducts);
-
-                // Generate filename: zepto_category_(term)_(date).xlsx
-                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                const searchTerm = data.categoryFilter ? data.categoryFilter.trim().replace(/\s+/g, '_') : 'categories';
-                const fileName = `${service}_category_${searchTerm}_${timestamp}.xlsx`;
-
-                // Convert buffer to base64
-                const base64Data = buffer.toString('base64');
-                console.log(`[DEBUG] Generated Excel base64 data (${base64Data.length} bytes)`);
-
-                socket.send(JSON.stringify({
-                    action: 'statusUpdate', step: 'scrapeCategories',
-                    status: 'completed',
-                    message: 'Scraping completed',
-                    fileData: base64Data, // Send data directly
-                    fileName: fileName,
-                    totalProducts: allProducts.length
-                }));
-                console.log('[DEBUG] Sent completion message with file data');
-
-                // Record success metrics
-                MetricsService.recordScrapingSuccess(service, 'category', durationTimer);
             })(),
             config.timeouts.scrapingMs,
             'Category scraping'

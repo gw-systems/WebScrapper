@@ -11,6 +11,7 @@ const logger = require('../utils/logger');
 class BrowserPool {
     constructor() {
         this.browsers = new Map(); // clientId -> { service: { browser, page, lastUsed } }
+        this.contexts = new Map(); // contextId -> { browser, context, page, lastUsed, service }
         this.cleanupInterval = null;
         this.isShuttingDown = false;
 
@@ -165,6 +166,84 @@ class BrowserPool {
     }
 
     /**
+     * Create an isolated browser context for a scraping session
+     * This prevents race conditions when multiple sessions run concurrently
+     * @param {string} contextId - Unique ID for this context (usually cid + timestamp)
+     * @param {string} service - Service name (zepto, blinkit, etc.)
+     * @returns {Promise<{browser, context, page}>}
+     */
+    async getOrCreateContext(contextId, service) {
+        if (this.isShuttingDown) {
+            throw new Error('Service is shutting down');
+        }
+
+        // Return existing context if available
+        if (this.contexts.has(contextId)) {
+            const resource = this.contexts.get(contextId);
+            if (resource.browser && resource.browser.isConnected() && resource.context) {
+                resource.lastUsed = Date.now();
+                return { browser: resource.browser, context: resource.context, page: resource.page };
+            }
+            // If disconnected, clean up
+            await this.closeContext(contextId);
+        }
+
+        // Check browser pool limits
+        const totalBrowsers = this.getTotalBrowserCount();
+        const totalContexts = this.contexts.size;
+
+        if (totalContexts >= config.browserPool.maxBrowsersTotal * 2) {
+            const error = new Error(
+                `Context limit reached: ${totalContexts} active contexts. ` +
+                `Please try again in a few moments.`
+            );
+            error.code = 'CONTEXT_LIMIT';
+            logger.warn('Context limit reached', { contextId, totalContexts });
+            throw error;
+        }
+
+        logger.info(`Creating new isolated context for ${service}`, { contextId });
+
+        // Get or create a shared browser for this service
+        // We'll use a special "shared" client ID for context-based scraping
+        const sharedClientId = `shared_${service}`;
+        const { browser } = await this.getOrInitBrowser(sharedClientId, service);
+
+        try {
+            // Create incognito context for isolation
+            const context = await browser.createBrowserContext();
+            const page = await context.newPage();
+
+            // Apply same optimizations as regular pages
+            await page.setRequestInterception(true);
+            page.on("request", (req) => {
+                const resourceType = req.resourceType();
+                if (["image", "font", "media"].includes(resourceType)) {
+                    req.abort();
+                } else {
+                    req.continue();
+                }
+            });
+
+            // Store context
+            this.contexts.set(contextId, {
+                browser,
+                context,
+                page,
+                service,
+                lastUsed: Date.now(),
+                createdAt: Date.now()
+            });
+
+            logger.info(`Context created successfully`, { contextId, service });
+            return { browser, context, page };
+        } catch (error) {
+            logger.error(`Failed to create context for ${service}`, { contextId, error: error.message });
+            throw error;
+        }
+    }
+
+    /**
      * Get existing page for client/service
      */
     getPage(clientId, service) {
@@ -194,6 +273,31 @@ class BrowserPool {
                 delete resources[service];
                 logger.info(`Closed ${service} browser`, { clientId });
             }
+        }
+    }
+
+    /**
+     * Close a specific browser context
+     * @param {string} contextId - The context ID to close
+     */
+    async closeContext(contextId) {
+        if (this.contexts.has(contextId)) {
+            const resource = this.contexts.get(contextId);
+            try {
+                // Close all pages in the context
+                const pages = await resource.context.pages();
+                await Promise.all(pages.map(p => p.close().catch(err =>
+                    logger.warn('Error closing page in context', { contextId, error: err.message })
+                )));
+
+                // Close the context itself
+                await resource.context.close();
+
+                logger.info('Closed browser context', { contextId, service: resource.service });
+            } catch (err) {
+                logger.warn('Error closing context', { contextId, error: err.message });
+            }
+            this.contexts.delete(contextId);
         }
     }
 
@@ -284,6 +388,14 @@ class BrowserPool {
                     this.browsers.delete(clientId);
                 }
             }
+
+            // Cleanup idle contexts
+            for (const [contextId, resource] of this.contexts.entries()) {
+                if (now - resource.lastUsed > ttl) {
+                    logger.info(`Closing idle context for ${resource.service}`, { contextId, idleTime: now - resource.lastUsed });
+                    await this.closeContext(contextId);
+                }
+            }
         }, 60000);
     }
 
@@ -302,6 +414,14 @@ class BrowserPool {
         }
 
         await Promise.all(closingPromises);
+
+        // Close all contexts
+        const contextClosingPromises = [];
+        for (const contextId of this.contexts.keys()) {
+            contextClosingPromises.push(this.closeContext(contextId));
+        }
+        await Promise.all(contextClosingPromises);
+
         logger.info('BrowserPool shutdown complete');
     }
 }
