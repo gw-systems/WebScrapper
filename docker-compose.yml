@@ -24,12 +24,12 @@ services:
     networks:
       - webscraper-network
 
-  # Backend API
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: webscraper-backend
+    init: true # Enable tini for zombie process reaping and signal forwarding
     depends_on:
       postgres:
         condition: service_healthy
