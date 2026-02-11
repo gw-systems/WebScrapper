@@ -107,24 +107,63 @@ router.get('/jobs', async (req, res) => {
     }
 });
 
-// POST /api/instamart/scrape
-// Trigger a new scraping job
-router.post('/scrape', validateBody('scrapeBody'), async (req, res) => {
+// GET /api/instamart/jobs/:id
+// Get status of a specific scraping job
+router.get('/jobs/:id', async (req, res) => {
     try {
-        // req.body is now validated and sanitized
-        const { category } = req.body;
+        const { id } = req.params;
 
-        // Trigger scraping
-        logger.info(`Starting manual scrape for: ${category}`);
+        const result = await pool.query(
+            'SELECT * FROM scraping_jobs WHERE id = $1',
+            [id]
+        );
 
-        // We await for now, but in prod consider background processing
-        const result = await scrapeAndStore(category);
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Job not found'
+            });
+        }
 
         res.json({
             success: true,
-            jobId: result.jobId,
-            productsFound: result.productsCount,
-            message: 'Scraping completed successfully'
+            job: result.rows[0]
+        });
+
+    } catch (error) {
+        logger.error('Error fetching job status', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// POST /api/instamart/scrape
+// Trigger a new scraping job (async - returns immediately)
+router.post('/scrape', validateBody('scrapeBody'), async (req, res) => {
+    try {
+        const { category } = req.body;
+        logger.info(`Starting manual scrape for: ${category}`);
+
+        // Create job record immediately
+        const jobResult = await pool.query(
+            `INSERT INTO scraping_jobs (service, category, status, started_at) 
+             VALUES ('instamart', $1, 'pending', NOW()) 
+             RETURNING id`,
+            [category]
+        );
+
+        const jobId = jobResult.rows[0].id;
+
+        // Return immediately with jobId
+        res.json({
+            success: true,
+            jobId: jobId,
+            status: 'pending',
+            message: 'Scraping job started. Poll GET /api/instamart/jobs/:id for status'
+        });
+
+        // Run scraping in background (don't await)
+        scrapeAndStore(category, jobId).catch(err => {
+            logger.error('Background scrape failed', { jobId, category, error: err.message });
         });
 
     } catch (error) {

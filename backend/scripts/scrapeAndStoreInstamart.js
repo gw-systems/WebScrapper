@@ -11,29 +11,47 @@ const { importProducts } = require('./importInstamartProducts');
 /**
  * Execute Python scraper and import results to database
  * @param {string} categoryName - Category to scrape (e.g., "Dairy, Bread and Eggs")
- * @param {string|null} sessionId - Optional WebSocket session ID
+ * @param {string|number|null} sessionIdOrJobId - WebSocket session ID OR existing job ID
  * @returns {Promise<Object>} Scraping result with job ID and product count
  */
-async function scrapeAndStore(categoryName, sessionId = null) {
+async function scrapeAndStore(categoryName, sessionIdOrJobId = null) {
     // Use shared pool
     let jobId = null;
+    let sessionId = null;
 
     try {
-        // 1. Create scraping job in database
         console.log(`\n${'='.repeat(60)}`);
         console.log(`Starting Instamart scraping job`);
         console.log(`Category: ${categoryName}`);
         console.log(`${'='.repeat(60)}\n`);
 
-        const jobResult = await pool.query(`
-      INSERT INTO scraping_jobs (
-        session_id, service, job_type, search_term, status
-      ) VALUES ($1, 'instamart', 'category', $2, 'in_progress')
-      RETURNING id
-    `, [sessionId, categoryName]);
+        // Check if sessionIdOrJobId is a job ID (number) or session ID (string starting with 'ws-')
+        if (typeof sessionIdOrJobId === 'number') {
+            // Existing job ID provided (from REST API)
+            jobId = sessionIdOrJobId;
+            console.log(`📝 Using existing job ID: ${jobId}`);
 
-        jobId = jobResult.rows[0].id;
-        console.log(`📝 Created job ID: ${jobId}`);
+            // Update status to running
+            await pool.query(`
+                UPDATE scraping_jobs 
+                SET status = 'running'
+                WHERE id = $1
+            `, [jobId]);
+
+        } else {
+            // Create new job (for WebSocket or CLI)
+            sessionId = sessionIdOrJobId;
+
+            const jobResult = await pool.query(`
+                INSERT INTO scraping_jobs (
+                    session_id, service, job_type, search_term, status
+                ) VALUES ($1, 'instamart', 'category', $2, 'in_progress')
+                RETURNING id
+            `, [sessionId, categoryName]);
+
+            jobId = jobResult.rows[0].id;
+            console.log(`📝 Created job ID: ${jobId}`);
+        }
 
         // 2. Update Python config with category
         const configPath = path.join(__dirname, '../instamart/config.py');
