@@ -8,6 +8,15 @@ puppeteer.use(StealthPlugin());
 const config = require('../config/environment');
 const logger = require('../utils/logger');
 
+// Pool of realistic User-Agents for rotation (prevents anti-bot detection)
+const USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0',
+];
+
 class BrowserPool {
     constructor() {
         this.browsers = new Map(); // clientId -> { service: { browser, page, lastUsed } }
@@ -17,6 +26,14 @@ class BrowserPool {
 
         // Start cleanup job
         this.startCleanupJob();
+    }
+
+    /**
+     * Get a random User-Agent from the pool
+     * @returns {string} Random User-Agent string
+     */
+    getRandomUserAgent() {
+        return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
     }
 
     /**
@@ -114,7 +131,7 @@ class BrowserPool {
                         "--disable-accelerated-2d-canvas",
                         "--disable-gpu",
                         "--window-size=1920,1080",
-                        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                        `--user-agent=${this.getRandomUserAgent()}`
                     ],
                 });
 
@@ -213,6 +230,9 @@ class BrowserPool {
             // Create incognito context for isolation
             const context = await browser.createBrowserContext();
             const page = await context.newPage();
+
+            // Set random User-Agent for this context
+            await page.setUserAgent(this.getRandomUserAgent());
 
             // Apply same optimizations as regular pages
             await page.setRequestInterception(true);
