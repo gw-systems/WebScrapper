@@ -49,6 +49,8 @@ test-db/
 *.csv
 *.xlsx
 *.xls
+# Keep the brand reference list (required input data, not scraped output)
+!database/Unique-Brand-Names.csv
 # Keep project config JSON files
 !package.json
 !package-lock.json
